@@ -1,4 +1,4 @@
-import { BOSPHORUS_DINNER, CONTACT, SERVICES } from "@lux/shared";
+import { BOSPHORUS_DINNER, CONTACT, RESERVATIONS, SERVICES } from "@lux/shared";
 
 export default function Home() {
   return (
@@ -30,6 +30,20 @@ export default function Home() {
             <span className="btn">İncele ↗</span>
           </div>
         </a>
+      </section>
+
+      <section className="section" id="rezervasyon">
+        <span className="eyebrow">Rezervasyon</span>
+        <h2>Konaklama, grup ve toplantılar</h2>
+        <div className="reservations">
+          {RESERVATIONS.map((r) => (
+            <a key={r.id} href={`/${r.slug}`}>
+              <small>{r.kicker}</small>
+              <h3>{r.title}</h3>
+              <p>{r.text}</p>
+            </a>
+          ))}
+        </div>
       </section>
 
       <section className="section" id="hizmetler">

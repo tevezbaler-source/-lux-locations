@@ -6,6 +6,7 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
+import { RESERVATIONS } from '@lux/shared';
 import { Pressable, View, StyleSheet } from 'react-native';
 
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -22,6 +23,11 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Keşfet</TabButton>
           </TabTrigger>
+          {RESERVATIONS.map((r) => (
+            <TabTrigger key={r.id} name={r.id} href={`/${r.id}`} asChild>
+              <TabButton>{r.tab}</TabButton>
+            </TabTrigger>
+          ))}
           <TabTrigger name="iletisim" href="/iletisim" asChild>
             <TabButton>İletişim</TabButton>
           </TabTrigger>
