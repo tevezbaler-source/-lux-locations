@@ -1,0 +1,13 @@
+{
+  "name": "lux-locations",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace web",
+    "mobile": "npm run start --workspace mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
