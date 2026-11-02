@@ -1,6 +1,6 @@
-import { colors, SERVICES, type Service } from '@lux/shared';
+import { BOSPHORUS_DINNER, colors, SERVICES, whatsappLink, type Service } from '@lux/shared';
 import { Image } from 'expo-image';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -15,8 +15,25 @@ const images: Record<Service['id'], number> = {
   rehberlik: require('@/assets/images/services/guide.jpg'),
 };
 
+const bosphorusPhotos: number[] = [
+  require('@/assets/images/bogaz/bogaz-01.jpg'),
+  require('@/assets/images/bogaz/bogaz-02.jpg'),
+  require('@/assets/images/bogaz/bogaz-03.jpg'),
+  require('@/assets/images/bogaz/bogaz-04.jpg'),
+  require('@/assets/images/bogaz/bogaz-05.jpg'),
+  require('@/assets/images/bogaz/bogaz-06.jpg'),
+  require('@/assets/images/bogaz/bogaz-07.jpg'),
+  require('@/assets/images/bogaz/bogaz-08.jpg'),
+  require('@/assets/images/bogaz/bogaz-09.jpg'),
+  require('@/assets/images/bogaz/bogaz-10.jpg'),
+  require('@/assets/images/bogaz/bogaz-11.jpg'),
+  require('@/assets/images/bogaz/bogaz-12.jpg'),
+];
+
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
+  // Kaydırmalı galeride her fotoğraf kartın tam genişliğini kaplar.
+  const photoWidth = Math.min(useWindowDimensions().width - Spacing.four * 2, MaxContentWidth - Spacing.four * 2);
 
   return (
     <ScrollView
@@ -28,6 +45,24 @@ export default function DiscoverScreen() {
       <ThemedText style={styles.brand}>LUX LOCATIONS</ThemedText>
       <ThemedText style={styles.eyebrow}>SİZE ÖZEL SEYAHAT</ThemedText>
       <ThemedText style={styles.title}>Yolculuğunuz, size özel.</ThemedText>
+
+      <View style={styles.featured}>
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+          {bosphorusPhotos.map((photo, i) => (
+            <Image key={i} source={photo} style={[styles.featuredPhoto, { width: photoWidth }]} contentFit="cover" transition={200} />
+          ))}
+        </ScrollView>
+        <View style={styles.cardBody}>
+          <ThemedText style={styles.featuredKicker}>{`ÖNE ÇIKAN · ${BOSPHORUS_DINNER.kicker}`}</ThemedText>
+          <ThemedText style={[styles.cardTitle, styles.featuredText]}>{BOSPHORUS_DINNER.title}</ThemedText>
+          <ThemedText style={[styles.cardText, styles.featuredMuted]}>{BOSPHORUS_DINNER.intro}</ThemedText>
+          <Pressable
+            onPress={() => Linking.openURL(whatsappLink(BOSPHORUS_DINNER.whatsappMessage))}
+            style={({ pressed }) => [styles.featuredButton, pressed && { opacity: 0.8 }]}>
+            <ThemedText style={styles.featuredButtonText}>WhatsApp ile bilgi alın</ThemedText>
+          </Pressable>
+        </View>
+      </View>
 
       {SERVICES.map((service, i) => (
         <View key={service.id} style={styles.card}>
@@ -63,4 +98,11 @@ const styles = StyleSheet.create({
   kicker: { fontSize: 11, letterSpacing: 1, color: colors.gold },
   cardTitle: { fontFamily: 'serif', fontSize: 22, lineHeight: 30, color: colors.ink },
   cardText: { fontSize: 14, lineHeight: 21 },
+  featured: { backgroundColor: colors.forest, marginBottom: Spacing.three },
+  featuredPhoto: { aspectRatio: 16 / 10 },
+  featuredKicker: { fontSize: 11, letterSpacing: 1, color: colors.copperLight },
+  featuredText: { color: colors.white },
+  featuredMuted: { color: colors.line },
+  featuredButton: { marginTop: Spacing.two, backgroundColor: colors.white, paddingVertical: Spacing.three, alignItems: 'center' },
+  featuredButtonText: { color: colors.ink, fontSize: 14, letterSpacing: 1 },
 });

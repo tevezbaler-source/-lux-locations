@@ -107,6 +107,39 @@ export const SERVICES: Service[] = [
   },
 ];
 
+export interface Experience {
+  slug: string;
+  title: string;
+  kicker: string;
+  intro: string;
+  highlights: { title: string; text: string }[];
+  // Fotoğraflar her iki uygulamada `bogaz-01.jpg` … biçiminde; ilki kapak görseli.
+  photoCount: number;
+  whatsappMessage: string;
+}
+
+// Tarih, saat, menü ve fiyat ekipten gelince eklenecek; o zamana kadar teklifle bildirilir.
+export const BOSPHORUS_DINNER: Experience = {
+  slug: 'bogaz-tekne-turu',
+  title: 'Boğaz’da yemekli tekne turu',
+  kicker: 'İstanbul · Akşam',
+  intro:
+    'Panoramik camların ardında Boğaz’ın ışıkları, size ayrılmış bir masa ve özenle hazırlanmış bir akşam yemeği. Tarih, kişi sayısı ve beklentilerinizi paylaşın; size özel teklifle dönelim.',
+  highlights: [
+    { title: 'Boğaz manzarası', text: 'Geniş camlı salonlardan iki yakayı ve köprüleri izleyerek bir akşam.' },
+    { title: 'Akşam yemeği', text: 'Hazırlanmış masalarda servis edilen yemekle keyifli bir program.' },
+    { title: 'Özel günler', text: 'Doğum günü, yıl dönümü ya da kurumsal grup için masa düzeni ve süsleme talebi.' },
+    { title: 'Transfer', text: 'İsterseniz otelinizden alış ve dönüşü de aynı plana ekleyelim.' },
+  ],
+  photoCount: 12,
+  whatsappMessage: 'Merhaba, Boğaz’da yemekli tekne turu için bilgi almak istiyorum.',
+};
+
+export function whatsappLink(message?: string): string {
+  const base = `https://wa.me/${CONTACT.whatsapp.replace('+', '')}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
+
 export interface Destination {
   slug: string;
   name: string;

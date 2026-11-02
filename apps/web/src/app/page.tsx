@@ -1,4 +1,4 @@
-import { CONTACT, SERVICES } from "@lux/shared";
+import { BOSPHORUS_DINNER, CONTACT, SERVICES } from "@lux/shared";
 
 export default function Home() {
   return (
@@ -18,6 +18,18 @@ export default function Home() {
           Yolculuğunuz, <em>size özel.</em>
         </h1>
         <p>Özel turlardan transfere, villa konaklamasından organizasyona kadar her ayrıntıyı sizin için planlıyoruz.</p>
+      </section>
+
+      <section className="section">
+        <a className="featured" href={`/${BOSPHORUS_DINNER.slug}`}>
+          <img src="/assets/bogaz/bogaz-01.jpg" alt={BOSPHORUS_DINNER.title} />
+          <div>
+            <small>Öne çıkan deneyim · {BOSPHORUS_DINNER.kicker}</small>
+            <h3>{BOSPHORUS_DINNER.title}</h3>
+            <p>{BOSPHORUS_DINNER.intro}</p>
+            <span className="btn">İncele ↗</span>
+          </div>
+        </a>
       </section>
 
       <section className="section" id="hizmetler">
