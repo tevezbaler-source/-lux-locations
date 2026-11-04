@@ -1,3 +1,5 @@
+import { SiteFooter } from "../site-footer";
+import { SiteHeader } from "../site-header";
 import type { Metadata } from "next";
 import { BOSPHORUS_DINNER as tour, CONTACT, whatsappLink } from "@lux/shared";
 
@@ -11,14 +13,7 @@ const photos = Array.from({ length: tour.photoCount }, (_, i) => `/assets/bogaz/
 export default function BosphorusDinnerPage() {
   return (
     <>
-      <header>
-        <a className="brand" href="/">
-          LUX LOCATIONS<small>TOURS &amp; TRAVEL</small>
-        </a>
-        <a className="btn" href={whatsappLink(tour.whatsappMessage)}>
-          Talep oluştur ↗
-        </a>
-      </header>
+      <SiteHeader ctaHref={whatsappLink(tour.whatsappMessage)} ctaLabel="Talep oluştur ↗" />
 
       <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(11,29,37,.7), rgba(11,29,37,.1)), url('${photos[0]}')` }}>
         <span className="eyebrow">{tour.kicker}</span>
@@ -57,12 +52,7 @@ export default function BosphorusDinnerPage() {
         </a>
       </section>
 
-      <footer>
-        <span>© 2026 Lux Locations</span>
-        <span>
-          <a href={`tel:${CONTACT.phone}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-        </span>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

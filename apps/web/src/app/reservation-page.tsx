@@ -1,3 +1,5 @@
+import { SiteFooter } from "./site-footer";
+import { SiteHeader } from "./site-header";
 import { CONTACT, RESERVATIONS, whatsappLink, type Reservation } from "@lux/shared";
 import type { Metadata } from "next";
 
@@ -13,14 +15,7 @@ export function ReservationPage({ id }: { id: Reservation["id"] }) {
 
   return (
     <>
-      <header>
-        <a className="brand" href="/">
-          LUX LOCATIONS<small>TOURS &amp; TRAVEL</small>
-        </a>
-        <a className="btn" href={whatsappLink()}>
-          WhatsApp ↗
-        </a>
-      </header>
+      <SiteHeader ctaHref={whatsappLink()} ctaLabel="WhatsApp ↗" />
 
       <nav className="tabs">
         {RESERVATIONS.map((r) => (
@@ -37,12 +32,7 @@ export function ReservationPage({ id }: { id: Reservation["id"] }) {
         <ReservationForm id={id} />
       </section>
 
-      <footer>
-        <span>© 2026 Lux Locations</span>
-        <span>
-          <a href={`tel:${CONTACT.phone}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-        </span>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

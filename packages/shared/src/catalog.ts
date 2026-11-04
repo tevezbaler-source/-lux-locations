@@ -52,10 +52,10 @@ export const SERVICES: Service[] = [
   },
   {
     id: 'konaklama',
-    title: 'Otel & villa',
+    title: 'Oteller',
     kicker: 'Kendinize ayırdığınız alan',
-    text: 'Bir şehir kaçamağı ya da uzun bir tatil. Beklentilerinize ve seyahat grubunuza uygun konaklama için talebinizi paylaşın.',
-    tags: ['Otel seçenekleri', 'Villa konaklaması', 'Kişisel tercihler'],
+    text: 'Bir şehir kaçamağı ya da uzun bir tatil. Beklentilerinize ve seyahat grubunuza uygun otel için talebinizi paylaşın.',
+    tags: ['Otel seçenekleri', 'Kahvaltı & oda', 'Kişisel tercihler'],
     image: 'villa.jpg',
     fields: [
       { key: 'region', label: 'Bölge', type: 'text', placeholder: 'Bodrum, İstanbul…' },
@@ -146,17 +146,49 @@ export interface Destination {
   country: string;
 }
 
-// Mevcut sitede 13 şehir anlatılıyor; geri kalanı içerik aktarımında eklenecek.
+// Eski sitedeki (luxlocationstours.com) şehir listesi.
 export const DESTINATIONS: Destination[] = [
   { slug: 'istanbul', name: 'İstanbul', country: 'Türkiye' },
-  { slug: 'kapadokya', name: 'Kapadokya', country: 'Türkiye' },
   { slug: 'bodrum', name: 'Bodrum', country: 'Türkiye' },
+  { slug: 'kapadokya', name: 'Kapadokya', country: 'Türkiye' },
+  { slug: 'antalya', name: 'Antalya', country: 'Türkiye' },
+  { slug: 'izmir', name: 'İzmir', country: 'Türkiye' },
+  { slug: 'bursa', name: 'Bursa', country: 'Türkiye' },
+  { slug: 'trabzon', name: 'Trabzon', country: 'Türkiye' },
+  { slug: 'sapanca', name: 'Sapanca', country: 'Türkiye' },
+  { slug: 'marmaris', name: 'Marmaris', country: 'Türkiye' },
+  { slug: 'kusadasi', name: 'Kuşadası', country: 'Türkiye' },
+  { slug: 'fethiye', name: 'Fethiye', country: 'Türkiye' },
+  { slug: 'didim', name: 'Didim', country: 'Türkiye' },
+  { slug: 'cesme', name: 'Çeşme', country: 'Türkiye' },
+  { slug: 'erzurum', name: 'Erzurum', country: 'Türkiye' },
   { slug: 'baku', name: 'Bakü', country: 'Azerbaycan' },
 ];
 
 export const CONTACT = {
   whatsapp: '+905319000340',
   phone: '+902125232310',
+  phone2: '+902125232311',
   email: 'reservation@luxlocationstours.com',
+  infoEmail: 'info@luxlocationstours.com',
+  address: 'Evliya Çelebi Mahallesi Meşrutiyet Caddesi No:92 Kat:2 D:5 34430 Beyoğlu / İstanbul / TÜRKİYE',
   website: 'https://www.luxlocationstours.com',
+  social: {
+    instagram: 'https://www.instagram.com/luxlocationstours/',
+    facebook: 'https://www.facebook.com/people/Lux-Locations-Tours/100082737445569/',
+    twitter: 'https://twitter.com/luxlocationn',
+    linkedin: 'https://www.linkedin.com/in/lux-locations-tours-06b780255/',
+  },
 } as const;
+
+export const ABOUT =
+  'Acentamız 2022 yılında kaliteyi uluslararası standartlarda, uzun vadeli ticari ilişkilere dayanan hizmet anlayışıyla kurulmuştur. TÜRSAB (Türkiye Seyahat Acentaları Birliği) üyesi olan acentamız; çeşitli bölgelerde koordineli ve sorunsuz ilerleyen transfer hizmetleri, geniş yelpazeli gezi programları, çok sayıda otel, mükemmel bir fiyat ve servis oranı ile profesyonel hizmet anlayışı sunarak tüm tur operatörlerine beklenen kesinlik, güvenilirlik ve esneklik sağlamaktadır.';
+
+export const PARTNERS = [
+  { name: 'Cistour', logo: 'cistour.png' },
+  { name: 'Camelia', logo: 'camellia.png' },
+  { name: 'Europa', logo: 'europa.png' },
+  { name: 'Panda', logo: 'panda.png' },
+  { name: 'Taki', logo: 'taki.png' },
+  { name: 'Nevokorp', logo: 'nevokorp.png' },
+] as const;

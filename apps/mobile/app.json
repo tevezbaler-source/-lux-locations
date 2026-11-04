@@ -1,4 +1,4 @@
-{
+﻿{
   "expo": {
     "name": "Lux Locations",
     "slug": "lux-locations",
@@ -17,7 +17,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundImage": "./assets/images/adaptive-background.png",
         "monochromeImage": "./assets/images/monochrome-icon.png",
-        "backgroundColor": "#0f221c"
+        "backgroundColor": "#3a5f78"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -33,7 +33,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0f221c"
+          "backgroundColor": "#3a5f78"
         }
       ]
     ],
