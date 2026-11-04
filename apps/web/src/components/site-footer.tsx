@@ -13,9 +13,7 @@ export function SiteFooter({ lang }: { lang: Locale }) {
         <div>
           <strong>{t.contact}</strong>
           <p dir="ltr">
-            <a href={`tel:${CONTACT.phone}`}>+90 212 523 23 10</a>
-            <br />
-            <a href={`tel:${CONTACT.phone2}`}>+90 212 523 23 11</a>
+            <a href={`tel:${CONTACT.phone}`}>{CONTACT.phoneDisplay}</a>
             <br />
             <a href={`mailto:${CONTACT.infoEmail}`}>{CONTACT.infoEmail}</a>
             <br />
