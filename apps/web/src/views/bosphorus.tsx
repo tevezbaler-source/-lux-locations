@@ -5,6 +5,8 @@ import { fill, getDict, type Locale } from "@/i18n";
 import { pageMetadata } from "./meta";
 
 const PATH = `/${tour.slug}`;
+// Tekne bölümünün başlığı her dilde aynı (Ogün'ün isteği, 2026-11-04).
+const BOAT_TITLE = "Bosphorus Dinner Cruise (Turkish Night)";
 const photos = Array.from({ length: tour.photoCount }, (_, i) => `/assets/bogaz/bogaz-${String(i + 1).padStart(2, "0")}.jpg`);
 const boat = tour.boat;
 const boatPhotos = boat
@@ -47,7 +49,9 @@ export function BosphorusView({ lang }: { lang: Locale }) {
       {boat && (
         <section className="section">
           <span className="eyebrow">{t.boatEyebrow}</span>
-          <h2>{boat.name}</h2>
+          <h2>
+            <bdi>{BOAT_TITLE}</bdi>
+          </h2>
           <p className="lead">{t.boatText}</p>
           <div className="boat-media">
             <video
