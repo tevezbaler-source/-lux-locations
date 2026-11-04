@@ -1,6 +1,8 @@
 import { CONTACT } from "@lux/shared";
+import { getDict, type Locale } from "@/i18n";
 
-export function SiteFooter() {
+export function SiteFooter({ lang }: { lang: Locale }) {
+  const t = getDict(lang).footer;
   return (
     <footer id="iletisim" className="site-footer">
       <div className="foot-grid">
@@ -9,8 +11,8 @@ export function SiteFooter() {
           <p>{CONTACT.address}</p>
         </div>
         <div>
-          <strong>İletişim</strong>
-          <p>
+          <strong>{t.contact}</strong>
+          <p dir="ltr">
             <a href={`tel:${CONTACT.phone}`}>+90 212 523 23 10</a>
             <br />
             <a href={`tel:${CONTACT.phone2}`}>+90 212 523 23 11</a>
@@ -21,7 +23,7 @@ export function SiteFooter() {
           </p>
         </div>
         <div>
-          <strong>Bizi takip edin</strong>
+          <strong>{t.follow}</strong>
           <p>
             <a href={CONTACT.social.instagram} target="_blank" rel="noreferrer">Instagram</a>
             {" · "}
@@ -33,7 +35,9 @@ export function SiteFooter() {
           </p>
         </div>
       </div>
-      <div className="foot-copy">© 2022–2026 Lux Locations Tours · Tüm hakları saklıdır · TÜRSAB üyesi</div>
+      <div className="foot-copy">
+        <span dir="ltr">© 2022–2026 Lux Locations Tours</span> · {t.rights}
+      </div>
     </footer>
   );
 }
