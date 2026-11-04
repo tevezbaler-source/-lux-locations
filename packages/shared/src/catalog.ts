@@ -185,9 +185,9 @@ export const DESTINATIONS: Destination[] = [
 ];
 
 export const CONTACT = {
-  whatsapp: '+905319000340',
-  phone: '+902125232310',
-  phone2: '+902125232311',
+  whatsapp: '+905396114190',
+  phone: '+905396114190',
+  phoneDisplay: '+90 539 611 41 90',
   email: 'reservation@luxlocationstours.com',
   infoEmail: 'info@luxlocationstours.com',
   address: 'Evliya Çelebi Mahallesi Meşrutiyet Caddesi No:92 Kat:2 D:5 34430 Beyoğlu / İstanbul / TÜRKİYE',
