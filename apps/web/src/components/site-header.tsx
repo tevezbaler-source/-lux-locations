@@ -24,12 +24,13 @@ export function SiteHeader({ lang, path, ctaHref, ctaLabel }: { lang: Locale; pa
       <div className="site-bar">
         <details className="lang">
           <summary aria-label={t.languageLabel}>
-            <span aria-hidden>🌐</span> {current.code.toUpperCase()}
+            <img className="flag" src={`/assets/flags/${current.code}.svg`} alt="" width={20} height={15} /> {current.code.toUpperCase()}
           </summary>
           <ul>
             {LOCALES.map((l) => (
               <li key={l.code}>
                 <a href={localePath(l.code, path)} hrefLang={l.code} lang={l.code} aria-current={l.code === lang ? "true" : undefined}>
+                  <img className="flag" src={`/assets/flags/${l.code}.svg`} alt="" width={20} height={15} loading="lazy" />
                   {l.name}
                 </a>
               </li>

@@ -174,10 +174,11 @@ footer { margin-top: 90px; padding: 40px 7%; border-top: 1px solid var(--line); 
 .lang summary::after { content: "▾"; font-size: 10px; }
 .lang summary:hover, .lang[open] summary { border-color: var(--copper-light); color: #fff; }
 .lang ul { position: absolute; top: calc(100% + 8px); inset-inline-start: 0; z-index: 60; margin: 0; padding: 6px 0; list-style: none; min-width: 170px; background: #fff; border: 1px solid var(--line); box-shadow: 0 12px 30px rgba(29, 52, 69, .18); }
-.lang li a { display: block; padding: 9px 18px; font-size: 14px; color: var(--ink); }
+.lang li a { display: flex; align-items: center; gap: 10px; padding: 9px 18px; font-size: 14px; color: var(--ink); }
 .lang li a:hover { background: var(--paper); }
+.lang .flag { width: 20px; height: 15px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
 .lang li a[aria-current] { color: var(--gold); font-weight: 600; }
-@media (max-width: 700px) { .lang summary { padding: 7px 8px; font-size: 11px; } .lang summary > span { display: none; } }
+@media (max-width: 700px) { .lang summary { padding: 7px 8px; font-size: 11px; } }
 
 /* Sağdan sola diller (Arapça, Farsça): harf aralığı Arap harflerinin bitişmesini bozar */
 [dir="rtl"] body, [dir="rtl"] body * { letter-spacing: 0 !important; }
