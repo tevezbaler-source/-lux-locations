@@ -9,6 +9,10 @@ export const metadata: Metadata = {
 };
 
 const photos = Array.from({ length: tour.photoCount }, (_, i) => `/assets/bogaz/bogaz-${String(i + 1).padStart(2, "0")}.jpg`);
+const boat = tour.boat;
+const boatPhotos = boat
+  ? Array.from({ length: boat.photoCount }, (_, i) => `/assets/${boat.slug}/${boat.slug}-${String(i + 1).padStart(2, "0")}.jpg`)
+  : [];
 
 export default function BosphorusDinnerPage() {
   return (
@@ -34,9 +38,47 @@ export default function BosphorusDinnerPage() {
         </div>
       </section>
 
+      {boat && (
+        <section className="section">
+          <span className="eyebrow">Teknemiz</span>
+          <h2>{boat.name}</h2>
+          <p className="lead">{boat.text}</p>
+          <div className="boat-media">
+            <video
+              className="tall"
+              src={`/assets/${boat.slug}/${boat.video}`}
+              poster={`/assets/${boat.slug}/${boat.poster}`}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label={`${boat.name} — Boğaz’da gece, drone çekimi`}
+            />
+            {boatPhotos.slice(0, -1).map((src, i) => (
+              <img key={src} src={src} alt={`${boat.name} teknesi — fotoğraf ${i + 1}`} loading="lazy" />
+            ))}
+            <img className="tall" src={boatPhotos.at(-1)} alt={`${boat.name} teknesi gece`} loading="lazy" />
+          </div>
+        </section>
+      )}
+
+      <section className="section">
+        <span className="eyebrow">Tanıtım filmi</span>
+        <h2>Lux Locations ile Boğaz’da bir akşam</h2>
+        <video
+          className="film"
+          src="/assets/video/lux-tanitim.mp4"
+          poster="/assets/video/lux-tanitim.jpg"
+          controls
+          playsInline
+          preload="none"
+        />
+      </section>
+
       <section className="section">
         <span className="eyebrow">Fotoğraflar</span>
-        <h2>Teknemizden kareler</h2>
+        <h2>Salondan kareler</h2>
         <div className="gallery">
           {photos.slice(1).map((src, i) => (
             <img key={src} src={src} alt={`${tour.title} — fotoğraf ${i + 2}`} loading="lazy" />

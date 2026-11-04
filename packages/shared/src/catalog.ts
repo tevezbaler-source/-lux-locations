@@ -116,6 +116,17 @@ export interface Experience {
   // Fotoğraflar her iki uygulamada `bogaz-01.jpg` … biçiminde; ilki kapak görseli.
   photoCount: number;
   whatsappMessage: string;
+  // Turu yapan tekne; görseller sitede `assets/<slug>/` altında.
+  boat?: {
+    name: string;
+    slug: string;
+    text: string;
+    // Yatay kareler; sonuncusu dikey (gece) kare.
+    photoCount: number;
+    // Dikey drone videosu, sessiz döngü olarak oynar.
+    video: string;
+    poster: string;
+  };
 }
 
 // Tarih, saat, menü ve fiyat ekipten gelince eklenecek; o zamana kadar teklifle bildirilir.
@@ -133,6 +144,14 @@ export const BOSPHORUS_DINNER: Experience = {
   ],
   photoCount: 12,
   whatsappMessage: 'Merhaba, Boğaz’da yemekli tekne turu için bilgi almak istiyorum.',
+  boat: {
+    name: 'Tosun Paşa',
+    slug: 'tosunpasa',
+    text: 'Geniş camlı salonları ve açık güvertesiyle Tosun Paşa, Dolmabahçe’den Çırağan’a, Ortaköy’den Boğaz Köprüsü’ne uzanan rotada akşamınıza eşlik ediyor.',
+    photoCount: 5,
+    video: 'tosunpasa-drone.mp4',
+    poster: 'tosunpasa-drone.jpg',
+  },
 };
 
 export function whatsappLink(message?: string): string {
