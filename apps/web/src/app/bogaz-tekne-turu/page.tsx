@@ -1,3 +1,5 @@
+import { SiteFooter } from "../site-footer";
+import { SiteHeader } from "../site-header";
 import type { Metadata } from "next";
 import { BOSPHORUS_DINNER as tour, CONTACT, whatsappLink } from "@lux/shared";
 
@@ -7,18 +9,15 @@ export const metadata: Metadata = {
 };
 
 const photos = Array.from({ length: tour.photoCount }, (_, i) => `/assets/bogaz/bogaz-${String(i + 1).padStart(2, "0")}.jpg`);
+const boat = tour.boat;
+const boatPhotos = boat
+  ? Array.from({ length: boat.photoCount }, (_, i) => `/assets/${boat.slug}/${boat.slug}-${String(i + 1).padStart(2, "0")}.jpg`)
+  : [];
 
 export default function BosphorusDinnerPage() {
   return (
     <>
-      <header>
-        <a className="brand" href="/">
-          LUX LOCATIONS<small>TOURS &amp; TRAVEL</small>
-        </a>
-        <a className="btn" href={whatsappLink(tour.whatsappMessage)}>
-          Talep oluştur ↗
-        </a>
-      </header>
+      <SiteHeader ctaHref={whatsappLink(tour.whatsappMessage)} ctaLabel="Talep oluştur ↗" />
 
       <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(11,29,37,.7), rgba(11,29,37,.1)), url('${photos[0]}')` }}>
         <span className="eyebrow">{tour.kicker}</span>
@@ -39,9 +38,47 @@ export default function BosphorusDinnerPage() {
         </div>
       </section>
 
+      {boat && (
+        <section className="section">
+          <span className="eyebrow">Teknemiz</span>
+          <h2>{boat.name}</h2>
+          <p className="lead">{boat.text}</p>
+          <div className="boat-media">
+            <video
+              className="tall"
+              src={`/assets/${boat.slug}/${boat.video}`}
+              poster={`/assets/${boat.slug}/${boat.poster}`}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label={`${boat.name} — Boğaz’da gece, drone çekimi`}
+            />
+            {boatPhotos.slice(0, -1).map((src, i) => (
+              <img key={src} src={src} alt={`${boat.name} teknesi — fotoğraf ${i + 1}`} loading="lazy" />
+            ))}
+            <img className="tall" src={boatPhotos.at(-1)} alt={`${boat.name} teknesi gece`} loading="lazy" />
+          </div>
+        </section>
+      )}
+
+      <section className="section">
+        <span className="eyebrow">Tanıtım filmi</span>
+        <h2>Lux Locations ile Boğaz’da bir akşam</h2>
+        <video
+          className="film"
+          src="/assets/video/lux-tanitim.mp4"
+          poster="/assets/video/lux-tanitim.jpg"
+          controls
+          playsInline
+          preload="none"
+        />
+      </section>
+
       <section className="section">
         <span className="eyebrow">Fotoğraflar</span>
-        <h2>Teknemizden kareler</h2>
+        <h2>Salondan kareler</h2>
         <div className="gallery">
           {photos.slice(1).map((src, i) => (
             <img key={src} src={src} alt={`${tour.title} — fotoğraf ${i + 2}`} loading="lazy" />
@@ -57,12 +94,7 @@ export default function BosphorusDinnerPage() {
         </a>
       </section>
 
-      <footer>
-        <span>© 2026 Lux Locations</span>
-        <span>
-          <a href={`tel:${CONTACT.phone}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-        </span>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

@@ -1,0 +1,30 @@
+# luxlocationstours.com (Apache, paylaşımlı Linux hosting) için statik site ayarları
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # www -> çıplak alan adı
+  RewriteCond %{HTTP_HOST} ^www\.luxlocationstours\.com$ [NC]
+  RewriteRule ^(.*)$ https://luxlocationstours.com/$1 [R=301,L]
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+</IfModule>
+
+# HTML sayfaları her seferinde yeniden doğrulansın (eski sayfa önbellekte kalmasın)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|txt)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+<IfModule LiteSpeed>
+  <FilesMatch "\.(html|txt)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

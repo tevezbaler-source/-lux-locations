@@ -1,23 +1,21 @@
-import { BOSPHORUS_DINNER, CONTACT, RESERVATIONS, SERVICES } from "@lux/shared";
+import { SiteFooter } from "./site-footer";
+import { HeroSlider } from "./hero-slider";
+import { SiteHeader } from "./site-header";
+import { ABOUT, BOSPHORUS_DINNER, CONTACT, DESTINATIONS, RESERVATIONS, SERVICES } from "@lux/shared";
 
 export default function Home() {
   return (
     <>
-      <header>
-        <a className="brand" href="/">
-          LUX LOCATIONS<small>TOURS &amp; TRAVEL</small>
-        </a>
-        <a className="btn" href={`https://wa.me/${CONTACT.whatsapp.replace("+", "")}`}>
-          Talep oluştur ↗
-        </a>
-      </header>
+      <SiteHeader ctaHref={`https://wa.me/${CONTACT.whatsapp.replace("+", "")}`} ctaLabel="Talep oluştur ↗" />
 
-      <section className="hero">
+      <HeroSlider ctaHref={`https://wa.me/${CONTACT.whatsapp.replace("+", "")}`} />
+
+      <section className="intro">
         <span className="eyebrow">İstanbul merkezli · Size özel seyahat</span>
         <h1>
           Yolculuğunuz, <em>size özel.</em>
         </h1>
-        <p>Özel turlardan transfere, villa konaklamasından organizasyona kadar her ayrıntıyı sizin için planlıyoruz.</p>
+        <p>Özel turlardan transfere, otel konaklamasından organizasyona kadar her ayrıntıyı sizin için planlıyoruz.</p>
       </section>
 
       <section className="section">
@@ -63,12 +61,21 @@ export default function Home() {
         </div>
       </section>
 
-      <footer>
-        <span>© 2026 Lux Locations</span>
-        <span>
-          <a href={`tel:${CONTACT.phone}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-        </span>
-      </footer>
+      <section className="section" id="hakkimizda">
+        <span className="eyebrow">Hakkımızda</span>
+        <h2>Lux Locations Tours</h2>
+        <p className="about">{ABOUT}</p>
+      </section>
+
+      <section className="section" id="destinasyonlar">
+        <span className="eyebrow">Destinasyonlar</span>
+        <h2>Gidebileceğiniz şehirler</h2>
+        <ul className="cities">
+          {DESTINATIONS.map((d) => (
+            <li key={d.slug}>{d.name}</li>
+          ))}
+        </ul>
+      </section>      <SiteFooter />
     </>
   );
 }
