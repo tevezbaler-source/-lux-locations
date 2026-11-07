@@ -331,3 +331,165 @@ function lx_apply($html, $path, $content)
     }
     return $html;
 }
+
+// ---- Bölümler: paneli sayfadaki gibi bölüm bölüm göstermek için ----
+
+// Flight verisinde bir anahtarın ilk değerini bulur (ör. slider'ın "slides" listesi)
+function lx_flight_find($html, $key)
+{
+    preg_match_all('#<script>self\.__next_f\.push\(\[1,(".*?")\]\)</script>#s', $html, $m);
+    $text = '';
+    foreach ($m[1] as $lit) { $d = json_decode($lit); if (is_string($d)) $text .= $d; }
+    $found = null;
+    $walk = function ($v) use (&$walk, &$found, $key) {
+        if ($found !== null || !is_array($v)) return;
+        if (array_key_exists($key, $v) && is_array($v[$key])) { $found = $v[$key]; return; }
+        foreach ($v as $x) $walk($x);
+    };
+    foreach (explode("\n", $text) as $row) {
+        $p = strpos($row, ':');
+        if ($p === false) continue;
+        $j = json_decode(substr($row, $p + 1), true);
+        if (is_array($j)) $walk($j);
+        if ($found !== null) break;
+    }
+    return $found;
+}
+
+function lx_has_class($el, $cls)
+{
+    return $el instanceof DOMElement && strpos(' ' . preg_replace('/\s+/', ' ', $el->getAttribute('class')) . ' ', ' ' . $cls . ' ') !== false;
+}
+
+function lx_block_title($el, $xp)
+{
+    $id = $el->getAttribute('id');
+    $ids = array('rezervasyon' => 'Rezervasyon kartları', 'hizmetler' => 'Hizmetler', 'hakkimizda' => 'Hakkımızda', 'destinasyonlar' => 'Destinasyonlar');
+    if (isset($ids[$id])) return $ids[$id];
+    if ($el->nodeName === 'header') return 'Üst menü';
+    if ($el->nodeName === 'footer') return 'Alt bilgi ve iletişim';
+    if (lx_has_class($el, 'slider')) return 'Kayan görseller (slider)';
+    if (lx_has_class($el, 'intro')) return 'Giriş yazısı';
+    if (lx_has_class($el, 'hero')) return 'Üst görsel ve başlık';
+    if (lx_has_class($el, 'cta')) return 'Sayfa sonu çağrısı (WhatsApp)';
+    if ($xp->query('.//a[contains(concat(" ",@class," ")," featured ")]', $el)->length) return 'Öne çıkan tur';
+    if ($xp->query('.//*[contains(concat(" ",@class," ")," highlights ")]', $el)->length) return 'Öne çıkanlar';
+    if ($xp->query('.//*[contains(concat(" ",@class," ")," boat-media ")]', $el)->length) return 'Tekne (video ve fotoğraflar)';
+    if ($xp->query('.//video[contains(concat(" ",@class," ")," film ")]', $el)->length) return 'Tanıtım filmi';
+    if ($xp->query('.//*[contains(concat(" ",@class," ")," gallery ")]', $el)->length) return 'Fotoğraf galerisi';
+    if ($xp->query('.//form', $el)->length) return 'Sayfa yazıları ve form';
+    foreach ($xp->query('.//h2|.//h1', $el) as $h) return trim($h->textContent);
+    return 'Bölüm';
+}
+
+// Sayfayı bölümlere ayırır. $mode: 'page' (menü/alt bilgi hariç) ya da 'common' (yalnızca menü ve alt bilgi)
+// Dönen her bölüm: id, title, texts[], images[], items[] (kartlar: title, texts[], images[]), galleries[] (galeri sırası)
+function lx_page_blocks($html, $mode = 'page')
+{
+    $editable = array();
+    $flightOnly = array();
+    foreach (lx_extract_texts($html) as $t) {
+        $editable[$t['text']] = $t['where'];
+        if ($t['where'] === 'Kayan görsel / form') $flightOnly[$t['text']] = true;
+    }
+    $doc = lx_dom($html);
+    $xp = new DOMXPath($doc);
+    $blocks = array();
+    $used = array();
+    $galleryIdx = 0;
+    $galleryOf = new SplObjectStorage();
+    foreach ($xp->query('//body//*[contains(concat(" ", normalize-space(@class), " "), " gallery ") or contains(concat(" ", normalize-space(@class), " "), " boat-media ")]') as $g) $galleryOf[$g] = $galleryIdx++;
+
+    $q = $mode === 'common' ? '//body//header[contains(@class,"site-head")] | //body//footer' : '//body//section';
+    $formBlock = null;
+    foreach ($xp->query($q) as $el) {
+        $b = array('id' => 'b' . count($blocks), 'title' => lx_block_title($el, $xp), 'texts' => array(), 'images' => array(), 'items' => array(), 'galleries' => array());
+        $isSlider = lx_has_class($el, 'slider');
+        // Kartlar
+        $itemEls = array();
+        $iq = './/article | .//*[contains(concat(" ",@class," ")," reservations ")]/a | .//*[contains(concat(" ",@class," ")," highlights ")]/div'
+            . ' | .//a[contains(concat(" ",@class," ")," featured ")] | ./div[contains(concat(" ",@class," ")," slide ")]'
+            . ' | .//*[contains(concat(" ",@class," ")," foot-grid ")]/div';
+        foreach ($xp->query($iq, $el) as $it) $itemEls[] = $it;
+        $owner = new SplObjectStorage();
+        foreach ($itemEls as $k => $it) {
+            $owner[$it] = $k;
+            $b['items'][$k] = array('title' => '', 'texts' => array(), 'images' => array());
+        }
+        $itemOf = function ($node) use ($owner, $el) {
+            for ($n = $node; $n && $n !== $el; $n = $n->parentNode) if ($n instanceof DOMElement && $owner->contains($n)) return $owner[$n];
+            return null;
+        };
+        $addText = function (&$list, $text, $where) use (&$used) {
+            foreach ($list as $x) if ($x['text'] === $text) return;
+            $list[] = array('text' => $text, 'where' => $where);
+            $used[$text] = true;
+        };
+        $addImg = function (&$list, $src, $kind) {
+            if ($src === '' || strpos($src, '/assets/flags/') === 0 || !preg_match('#^/[^"\'\s<>]+$#', $src)) return;
+            foreach ($list as $x) if ($x['src'] === $src) return;
+            $list[] = array('src' => $src, 'kind' => $kind);
+        };
+        // Metinler
+        foreach ($xp->query('.//text()[not(ancestor::script) and not(ancestor::style)] | .//img/@alt | .//*/@aria-label | .//*/@placeholder', $el) as $n) {
+            $text = $n->nodeValue;
+            if (!isset($editable[$text])) continue;
+            $isAttr = $n instanceof DOMAttr;
+            $where = $isAttr ? ($n->name === 'alt' ? 'Görsel açıklaması (Google / ekran okuyucu)' : ($n->name === 'placeholder' ? 'Form kutusundaki örnek yazı' : 'Ekran okuyucu etiketi')) : $editable[$text];
+            $parent = $isAttr ? $n->ownerElement : $n->parentNode;
+            $k = $itemOf($parent);
+            if ($isSlider) $k = null; // slayt metinleri aşağıda flight'tan eklenir
+            if ($k === null) $addText($b['texts'], $text, $where);
+            else $addText($b['items'][$k]['texts'], $text, $where);
+        }
+        // Görseller
+        foreach ($xp->query('.//*[@style] | .//img | .//video', $el) as $n) {
+            $k = $itemOf($n);
+            $srcs = array();
+            if ($n->hasAttribute('style') && preg_match_all('#url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)#', $n->getAttribute('style'), $m)) foreach ($m[1] as $u) $srcs[] = array($u, 'Arka plan görseli');
+            if ($n->nodeName === 'img') $srcs[] = array($n->getAttribute('src'), 'Fotoğraf');
+            if ($n->nodeName === 'video') { $srcs[] = array($n->getAttribute('src'), 'Video'); if ($n->hasAttribute('poster')) $srcs[] = array($n->getAttribute('poster'), 'Video kapak görseli'); }
+            foreach ($srcs as $s) {
+                if ($k === null) $addImg($b['images'], $s[0], $s[1]);
+                else $addImg($b['items'][$k]['images'], $s[0], $s[1]);
+            }
+        }
+        foreach ($xp->query('.//*', $el) as $n) if ($galleryOf->contains($n)) $b['galleries'][] = $galleryOf[$n];
+        // Slider: her slaytın üst yazısı ve başlığı
+        if ($isSlider) {
+            $slides = lx_flight_find($html, 'slides');
+            foreach ($b['items'] as $k => $unused) {
+                $s = is_array($slides) && isset($slides[$k]) ? $slides[$k] : array();
+                if (isset($s['kicker'], $editable[$s['kicker']])) $addText($b['items'][$k]['texts'], $s['kicker'], 'Küçük üst yazı');
+                if (isset($s['title'], $editable[$s['title']])) $addText($b['items'][$k]['texts'], $s['title'], 'Şehir / başlık');
+                $b['items'][$k]['title'] = 'Slayt ' . ($k + 1) . (isset($s['title']) ? ' · ' . $s['title'] : '');
+            }
+            $b['note'] = 'Tüm slaytlarda ortak yazılar en üstte.';
+        }
+        // Kart başlıkları
+        foreach ($itemEls as $k => $it) {
+            if ($b['items'][$k]['title'] !== '') continue;
+            $t = '';
+            foreach ($xp->query('.//h3|.//h2|.//strong', $it) as $h) { $t = trim($h->textContent); break; }
+            $b['items'][$k]['title'] = $t !== '' ? $t : 'Kart ' . ($k + 1);
+        }
+        $b['items'] = array_values(array_filter($b['items'], function ($i) { return $i['texts'] || $i['images']; }));
+        if ($xp->query('.//form', $el)->length) $formBlock = count($blocks);
+        if ($b['texts'] || $b['images'] || $b['items'] || $b['galleries']) $blocks[] = $b;
+    }
+    // Yalnızca tarayıcıda görünen metinler (form uyarıları vb.)
+    if ($mode === 'page') {
+        $rest = array();
+        foreach ($flightOnly as $text => $_) if (!isset($used[$text])) $rest[] = array('text' => $text, 'where' => 'Form uyarısı / mesajı');
+        if ($rest) {
+            if ($formBlock !== null) $blocks[$formBlock]['texts'] = array_merge($blocks[$formBlock]['texts'], $rest);
+            else $blocks[] = array('id' => 'b' . count($blocks), 'title' => 'Diğer yazılar', 'texts' => $rest, 'images' => array(), 'items' => array(), 'galleries' => array());
+        }
+        // Google
+        $g = array();
+        foreach ($xp->query('//title') as $n) if (isset($editable[$n->textContent])) $g[] = array('text' => $n->textContent, 'where' => 'Google başlığı (sekme adı)');
+        foreach ($xp->query('//meta[@name="description"]/@content') as $n) if (isset($editable[$n->nodeValue])) $g[] = array('text' => $n->nodeValue, 'where' => 'Google açıklaması');
+        if ($g) $blocks[] = array('id' => 'google', 'title' => 'Google görünümü', 'texts' => $g, 'images' => array(), 'items' => array(), 'galleries' => array());
+    }
+    return $blocks;
+}

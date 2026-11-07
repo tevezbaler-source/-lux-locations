@@ -29,19 +29,20 @@ Write-Host "Canli .htaccess yedeklendi: $bak"
 
 # 2) Yeni dosyalar (.htaccess haric)
 $files = @(
-  "lx-content/.htaccess", "lx-content/lib.php", "lx-content/render.php",
+  "lx-content/.htaccess", "lx-content/lib.php", "lx-content/hotels.php", "lx-content/render.php",
   "lx-content/data/.htaccess", "lx-content/uploads/.htaccess",
   "admin/site/.htaccess", "admin/site/index.php"
 )
 foreach ($f in $files) { Up (Join-Path $Src ($f -replace "/", "\")) $f }
 
-# 3) .htaccess: kurallar yoksa sonuna ekle
+# 3) .htaccess: eski site-duzenleme blogu varsa cikar, guncel blogu sona ekle
 $live = [IO.File]::ReadAllText($bak)
-if ($live -match "lx-content/render\.php") {
+$block = [IO.File]::ReadAllText((Join-Path $Src "htaccess-block.txt"))
+$clean = [regex]::Replace($live, "(?s)\r?\n*# --- Site duzenleme.*?</IfModule>\r?\n?", "")
+$new = $clean.TrimEnd() + "`n`n" + $block
+if ($new.Trim() -eq $live.Trim()) {
   Write-Host ".htaccess zaten guncel, dokunulmadi."
 } else {
-  $block = [IO.File]::ReadAllText((Join-Path $Src "htaccess-block.txt"))
-  $new = $live.TrimEnd() + "`n`n" + $block
   $tmp = Join-Path $Src "htaccess-yeni.txt"
   [IO.File]::WriteAllText($tmp, $new, (New-Object Text.UTF8Encoding($false)))
   Up $tmp ".htaccess"

@@ -20,6 +20,12 @@ ErrorDocument 404 /404.html
   RewriteCond %{REQUEST_URI} !^/(admin|lx-content|_next|assets)/
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^(.+\.html)$ lx-content/render.php [L]
+
+  # Panelden eklenen otellerin sayfaları (/oteller/<otel>/)
+  RewriteCond %{ENV:REDIRECT_STATUS} ^$
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(([a-z]{2}/)?oteller/[a-z0-9-]+/?)$ lx-content/render.php [L]
 </IfModule>
 
 <IfModule mod_expires.c>
