@@ -7,6 +7,25 @@ ErrorDocument 404 /404.html
   # www -> çıplak alan adı
   RewriteCond %{HTTP_HOST} ^www\.luxlocationstours\.com$ [NC]
   RewriteRule ^(.*)$ https://luxlocationstours.com/$1 [R=301,L]
+
+  # Sayfalar, admin panelinden (/admin/site/) yapılan metin ve görsel değişiklikleriyle sunulur.
+  # Dosyalar diskte değişmez; render.php onları okuyup değişiklikleri uygular.
+  RewriteCond %{ENV:REDIRECT_STATUS} ^$
+  RewriteCond %{REQUEST_URI} !^/(admin|lx-content|_next|assets)/
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^(.*/)?$ lx-content/render.php [L]
+
+  RewriteCond %{ENV:REDIRECT_STATUS} ^$
+  RewriteCond %{REQUEST_URI} !^/(admin|lx-content|_next|assets)/
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^(.+\.html)$ lx-content/render.php [L]
+
+  # Panelden eklenen otellerin sayfaları (/oteller/<otel>/)
+  RewriteCond %{ENV:REDIRECT_STATUS} ^$
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(([a-z]{2}/)?oteller/[a-z0-9-]+/?)$ lx-content/render.php [L]
 </IfModule>
 
 <IfModule mod_expires.c>

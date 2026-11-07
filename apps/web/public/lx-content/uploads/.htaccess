@@ -1,0 +1,5 @@
+# Yüklenen dosyalar yalnızca görsel olarak sunulur, hiçbir betik çalıştırılmaz
+<FilesMatch "\.(php|php\d|phtml|phar|pl|py|cgi|sh|html?|svg)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes -ExecCGI
