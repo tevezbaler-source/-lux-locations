@@ -49,11 +49,11 @@ if ($live -match "lx-content/render\.php") {
 
 # 4) Kontrol
 function Code([string]$url) {
-  $c = & curl.exe -s -o NUL -w "%{http_code}" $url
+  $c = & curl.exe -s -L -o NUL -w "%{http_code}" $url
   return $c
 }
 Start-Sleep -Seconds 2
-$pageHtml = (& curl.exe -s "$Site/en/") -join "`n"
+$pageHtml = (& curl.exe -s -L "$Site/en/") -join "`n"
 $ok = ($pageHtml -match "__next_f") -and ((Code "$Site/") -eq "200") -and ((Code "$Site/en/") -eq "200") -and ((Code "$Site/bogaz-tekne-turu/") -eq "200")
 $ed = Code "$Site/admin/site/"
 $lib = Code "$Site/lx-content/lib.php"
