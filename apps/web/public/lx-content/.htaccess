@@ -1,0 +1,5 @@
+# lx-content: yalnızca render.php ve uploads/ dışarıdan erişilebilir
+<FilesMatch "^(lib\.php|.*\.json)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
