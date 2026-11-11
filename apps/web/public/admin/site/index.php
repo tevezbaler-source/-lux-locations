@@ -244,14 +244,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($hotels as $k => $h) if ($h['id'] === $id) $idx = $k;
                 $name = trim((string) $_POST['name']);
                 if ($name === '') throw new RuntimeException('Otel adı boş olamaz.');
-                $h = $idx === null ? array('id' => bin2hex(random_bytes(5)), 'slug' => '', 'published' => true, 'galleries' => lx_hotel_default_galleries()) : $hotels[$idx];
+                $h = $idx === null ? lx_hotel_normalize(array('id' => bin2hex(random_bytes(5)), 'slug' => '', 'published' => true, 'galleries' => lx_hotel_default_galleries())) : $hotels[$idx];
                 $h['name'] = $name;
                 $h['stars'] = max(0, min(7, (int) $_POST['stars']));
                 $h['published'] = !empty($_POST['published']);
-                foreach (array('city', 'summary', 'description') as $fld) {
+                foreach (array('address', 'map', 'website', 'booking') as $fld) {
+                    $v = trim((string) (isset($_POST[$fld]) ? $_POST[$fld] : ''));
+                    if ($fld !== 'address' && $v !== '' && !preg_match('#^https?://#i', $v)) $v = 'https://' . $v;
+                    $h[$fld] = $v;
+                }
+                $h['coverAi'] = !empty($_POST['coverAi']);
+                foreach (array('city', 'summary', 'description', 'features', 'amenities', 'rooms') as $fld) {
                     $vals = isset($_POST[$fld]) ? (array) $_POST[$fld] : array();
                     $h[$fld] = array();
-                    foreach ($vals as $l => $v) if (isset($langs[$l]) && trim((string) $v) !== '') $h[$fld][$l] = trim((string) $v);
+                    foreach ($vals as $l => $v) if (isset($langs[$l]) && trim((string) $v) !== '') $h[$fld][$l] = str_replace("\r\n", "\n", trim((string) $v));
                 }
                 // Adres (slug): ilk kayıtta addan, sonra sabit
                 if ($h['slug'] === '') {
@@ -271,12 +277,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!empty($_POST['gremove'][$k])) continue;
                     $tt = array();
                     foreach ((array) $t as $l => $v) if (trim((string) $v) !== '') $tt[$l] = trim((string) $v);
-                    $photos = array();
-                    foreach ($old['photos'] as $j => $p) if (empty($_POST['gdel'][$k][$j])) $photos[] = $p;
-                    $photos = array_merge($photos, lx_store_many('gfiles', $k));
+                    $photos = array(); $caps = array();
+                    foreach ($old['photos'] as $j => $p) {
+                        if (!empty($_POST['gdel'][$k][$j])) continue;
+                        $c = isset($old['caps'][$j]) && is_array($old['caps'][$j]) ? $old['caps'][$j] : array();
+                        $nc = isset($_POST['gcap'][$k][$j]) ? trim((string) $_POST['gcap'][$k][$j]) : (isset($c['tr']) ? $c['tr'] : '');
+                        if (!isset($c['tr']) || $nc !== $c['tr']) $c = $nc !== '' ? array('tr' => $nc) : array(); // Türkçe değişince eski çeviriler düşer
+                        $photos[] = $p; $caps[] = $c;
+                    }
+                    foreach (lx_store_many('gfiles', $k) as $u) { $photos[] = $u; $caps[] = array(); }
                     if (!$tt && !$photos) continue; // boş yeni galeri
                     if (!$tt) $tt = array('tr' => 'Fotoğraflar', 'en' => 'Photos');
-                    $gal[] = array('title' => $tt, 'photos' => $photos);
+                    $oldTitle = isset($old['title']) ? $old['title'] : array();
+                    $gal[] = array('title' => $tt + $oldTitle, 'photos' => $photos, 'caps' => $caps);
                 }
                 $h['galleries'] = $gal;
                 if (empty($h['cover'])) foreach ($gal as $g) if ($g['photos']) { $h['cover'] = $g['photos'][0]; break; }
@@ -376,6 +389,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
 .gbox{border:1px solid var(--line);border-radius:9px;padding:12px;margin-top:10px;background:#fafcfd}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.thumbs label{margin:0;font-weight:400;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
 .thumbs .t{width:110px;aspect-ratio:4/3;background:#e8ecef center/cover no-repeat;border-radius:6px}
+.thumbs .cap{display:flex;flex-direction:column;gap:3px;width:110px;font-size:12px}.thumbs .cap input[type=text]{width:100%;font-size:12px;padding:4px 6px}.thumbs .cap label{flex-direction:row}
 </style>
 </head>
 <body>
@@ -475,7 +489,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
   if ($page === '/oteller/'):
       $hotels = lx_hotels_load();
       $edit = null;
-      if ($hotelSel === 'new') $edit = array('id' => '', 'name' => '', 'stars' => 0, 'published' => true, 'city' => array(), 'summary' => array(), 'description' => array(), 'cover' => '', 'galleries' => lx_hotel_default_galleries(), 'slug' => '');
+      if ($hotelSel === 'new') $edit = lx_hotel_normalize(array('id' => '', 'name' => '', 'stars' => 0, 'published' => true, 'galleries' => lx_hotel_default_galleries(), 'slug' => 'yeni'));
       else foreach ($hotels as $hh) if ($hh['id'] === $hotelSel) $edit = $hh;
   ?>
     <?php if ($edit === null): ?>
@@ -508,18 +522,33 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
         <p class="hint">Türkçe yazmanız yeterli. Başka bir dilde yazılmayan alanlar o dilde İngilizce, o da yoksa Türkçe görünür.</p>
         <div class="grid2">
           <div><label>Otel adı *</label><input type="text" name="name" required value="<?= h($edit['name']) ?>" placeholder="Örn. Pera Palace Hotel"></div>
-          <div><label>Şehir / semt</label><input type="text" name="city[tr]" value="<?= h(isset($edit['city']['tr']) ? $edit['city']['tr'] : '') ?>" placeholder="Örn. İstanbul, Beyoğlu"></div>
+          <div><label>Konum satırı (semt · ilçe · şehir)</label><input type="text" name="city[tr]" value="<?= h(isset($edit['city']['tr']) ? $edit['city']['tr'] : '') ?>" placeholder="Örn. Laleli · Fatih · İstanbul"></div>
           <div><label>Yıldız</label><select name="stars"><?php for ($s = 0; $s <= 5; $s++): ?><option value="<?= $s ?>"<?= (int) $edit['stars'] === $s ? ' selected' : '' ?>><?= $s ? str_repeat('★', $s) . ' (' . $s . ')' : 'Belirtme' ?></option><?php endfor; ?></select></div>
           <div><label>Durum</label><label style="font-weight:400"><input type="checkbox" name="published" value="1"<?= !empty($edit['published']) ? ' checked' : '' ?>> Sitede yayında</label></div>
         </div>
-        <label>Kısa açıklama (otel listesinde görünür)</label><textarea name="summary[tr]" rows="2" placeholder="Örn. Tarihi yarımadaya yürüme mesafesinde, Boğaz manzaralı butik otel."><?= h(isset($edit['summary']['tr']) ? $edit['summary']['tr'] : '') ?></textarea>
-        <label>Detaylı açıklama (otelin sayfasında görünür)</label><textarea name="description[tr]" rows="6" placeholder="Odalar, kahvaltı, konum, olanaklar… Paragraf için bir satır boş bırakın."><?= h(isset($edit['description']['tr']) ? $edit['description']['tr'] : '') ?></textarea>
-        <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;color:var(--c)">Diğer dillerde yazılar (isteğe bağlı)</summary>
+        <p class="hint">Bir otel bir kez eklenir; sitede 11 dilin hepsinde görünür. Aşağıdaki yazıları Türkçe girin. Bir dilin çevirisi yoksa o dilde İngilizcesi, o da yoksa Türkçesi görünür. Çevirileri "Diğer dillerde yazılar" bölümünden düzenleyebilirsiniz.</p>
+        <label>Kısa açıklama (otel listesindeki kartta görünür)</label><textarea name="summary[tr]" rows="2" placeholder="Örn. Tarihi yarımadaya yürüme mesafesinde, Boğaz manzaralı butik otel."><?= h(isset($edit['summary']['tr']) ? $edit['summary']['tr'] : '') ?></textarea>
+        <label>Otel hakkında (otelin sayfasında görünür)</label><textarea name="description[tr]" rows="5" placeholder="Paragraf için bir satır boş bırakın."><?= h(isset($edit['description']['tr']) ? $edit['description']['tr'] : '') ?></textarea>
+        <div class="grid2">
+          <div><label>Kart etiketleri (her satıra bir tane, en fazla 3)</label><textarea name="features[tr]" rows="3" placeholder="Açık büfe kahvaltı&#10;Spa&#10;Ücretsiz Wi-Fi"><?= h(isset($edit['features']['tr']) ? $edit['features']['tr'] : '') ?></textarea></div>
+          <div><label>Otel olanakları (her satıra bir tane)</label><textarea name="amenities[tr]" rows="3" placeholder="Restoran&#10;Türk hamamı"><?= h(isset($edit['amenities']['tr']) ? $edit['amenities']['tr'] : '') ?></textarea></div>
+        </div>
+        <label>Odalar (her satıra bir oda: Oda adı | m² | kısa açıklama)</label><textarea name="rooms[tr]" rows="5" placeholder="Standart Oda | 22 m² | Çift kişilik yatak.&#10;Aile Odası | 30 m² | Dört misafir için."><?= h(isset($edit['rooms']['tr']) ? $edit['rooms']['tr'] : '') ?></textarea>
+        <div class="grid2">
+          <div><label>Adres</label><input type="text" name="address" value="<?= h($edit['address']) ?>" placeholder="Mahalle, cadde, no, ilçe, İstanbul"></div>
+          <div><label>Google Haritalar bağlantısı (boşsa adresten oluşur)</label><input type="text" name="map" value="<?= h($edit['map']) ?>"></div>
+          <div><label>Otelin resmî sitesi</label><input type="text" name="website" value="<?= h($edit['website']) ?>" placeholder="https://"></div>
+          <div><label>Otelin resmî rezervasyon sayfası</label><input type="text" name="booking" value="<?= h($edit['booking']) ?>" placeholder="https://"></div>
+        </div>
+        <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;color:var(--c)">Diğer dillerde yazılar (çeviriler)</summary>
           <?php foreach ($langs as $l => $ln): if ($l === 'tr') continue; ?>
             <div class="gbox"><b><?= h($ln) ?></b>
-              <div class="grid2"><div><label>Şehir</label><input type="text" dir="auto" name="city[<?= $l ?>]" value="<?= h(isset($edit['city'][$l]) ? $edit['city'][$l] : '') ?>"></div>
+              <div class="grid2"><div><label>Konum satırı</label><input type="text" dir="auto" name="city[<?= $l ?>]" value="<?= h(isset($edit['city'][$l]) ? $edit['city'][$l] : '') ?>"></div>
               <div><label>Kısa açıklama</label><input type="text" dir="auto" name="summary[<?= $l ?>]" value="<?= h(isset($edit['summary'][$l]) ? $edit['summary'][$l] : '') ?>"></div></div>
-              <label>Detaylı açıklama</label><textarea dir="auto" name="description[<?= $l ?>]" rows="3"><?= h(isset($edit['description'][$l]) ? $edit['description'][$l] : '') ?></textarea>
+              <label>Otel hakkında</label><textarea dir="auto" name="description[<?= $l ?>]" rows="3"><?= h(isset($edit['description'][$l]) ? $edit['description'][$l] : '') ?></textarea>
+              <div class="grid2"><div><label>Kart etiketleri</label><textarea dir="auto" name="features[<?= $l ?>]" rows="3"><?= h(isset($edit['features'][$l]) ? $edit['features'][$l] : '') ?></textarea></div>
+              <div><label>Otel olanakları</label><textarea dir="auto" name="amenities[<?= $l ?>]" rows="3"><?= h(isset($edit['amenities'][$l]) ? $edit['amenities'][$l] : '') ?></textarea></div></div>
+              <label>Odalar (Oda adı | m² | kısa açıklama)</label><textarea dir="auto" name="rooms[<?= $l ?>]" rows="3"><?= h(isset($edit['rooms'][$l]) ? $edit['rooms'][$l] : '') ?></textarea>
             </div>
           <?php endforeach; ?>
         </details>
@@ -527,7 +556,8 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
         <h3>Kapak fotoğrafı</h3>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
           <?php if (!empty($edit['cover'])): ?><div class="thumbs"><div class="t" style="width:180px;background-image:url('<?= h($edit['cover']) ?>')"></div></div><?php endif; ?>
-          <div><input type="file" name="cover[]" accept="image/jpeg,image/png,image/webp"><p class="hint"><?= empty($edit['cover']) ? 'Seçmezseniz ilk galerinin ilk fotoğrafı kullanılır.' : 'Değiştirmek için yeni dosya seçin.' ?></p></div>
+          <div><input type="file" name="cover[]" accept="image/jpeg,image/png,image/webp"><p class="hint"><?= empty($edit['cover']) ? 'Seçmezseniz ilk galerinin ilk fotoğrafı kullanılır.' : 'Değiştirmek için yeni dosya seçin.' ?></p>
+            <label style="font-weight:400"><input type="checkbox" name="coverAi" value="1"<?= !empty($edit['coverAi']) ? ' checked' : '' ?>> Kapak yapay zekâ ile düzenlendi (altına not yazılır)</label></div>
         </div>
 
         <h3>Fotoğraf galerileri</h3>
@@ -540,7 +570,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
               <div><label>Başlığın İngilizcesi</label><input type="text" name="gtitle[<?= $k ?>][en]" value="<?= h(isset($g['title']['en']) ? $g['title']['en'] : '') ?>" placeholder="Örn. Restaurant"></div>
             </div>
             <?php if ($g['photos']): ?><div class="thumbs">
-              <?php foreach ($g['photos'] as $j => $p): ?><label><span class="t" style="background-image:url('<?= h($p) ?>')"></span><span><input type="checkbox" name="gdel[<?= $k ?>][<?= $j ?>]" value="1"> kaldır</span></label><?php endforeach; ?>
+              <?php foreach ($g['photos'] as $j => $p): ?><div class="cap"><span class="t" style="background-image:url('<?= h($p) ?>')"></span><input type="text" name="gcap[<?= $k ?>][<?= $j ?>]" value="<?= h(isset($g['caps'][$j]['tr']) ? $g['caps'][$j]['tr'] : '') ?>" placeholder="Açıklama"><label><input type="checkbox" name="gdel[<?= $k ?>][<?= $j ?>]" value="1"> kaldır</label></div><?php endforeach; ?>
             </div><?php endif; ?>
             <label style="font-weight:400">Fotoğraf ekle: <input type="file" name="gfiles[<?= $k ?>][]" multiple accept="image/jpeg,image/png,image/webp"></label>
             <?php if (empty($g['new'])): ?><label style="font-weight:400;color:var(--err)"><input type="checkbox" name="gremove[<?= $k ?>]" value="1"> Bu galeriyi tamamen sil</label><?php endif; ?>

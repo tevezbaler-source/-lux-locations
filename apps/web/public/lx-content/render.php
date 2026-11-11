@@ -41,6 +41,7 @@ header('Cache-Control: no-cache, must-revalidate');
 $html = (string) file_get_contents($file);
 try {
     $out = lx_apply($html, $path, lx_load_content());
+    if (lx_base_path($path) === '/' || lx_base_path($path) === '/index.html') $out = lx_home_rail($out, lx_lang_of($path));
 } catch (Throwable $e) {
     $out = $html;
 }
