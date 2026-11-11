@@ -44,7 +44,7 @@ Up $new "oteller/.htaccess"
 Start-Sleep -Seconds 2
 $bad = @()
 foreach ($c in @("/oteller/", "/oteller/marcello-hotel/", "/oteller/grand-marcello-hotel-spa/", "/en/oteller/", "/")) {
-  $code = (& curl.exe -s -o NUL -w "%{http_code}" "$Site$c")
+  $code = (& curl.exe -s -L -o NUL -w "%{http_code}" "$Site$c")
   Write-Host "  $c -> $code"
   if ($code -ne "200") { $bad += $c }
 }
