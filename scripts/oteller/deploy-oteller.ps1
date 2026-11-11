@@ -16,8 +16,13 @@ $bak = Join-Path $Src "canli-yedek-$stamp"
 New-Item -ItemType Directory -Force -Path $bak | Out-Null
 
 function Get-Remote([string]$remote, [string]$local) {
-  & curl.exe -s -S --user $cred "$base/$remote" -o $local 2>$null
-  return ($LASTEXITCODE -eq 0 -and (Test-Path $local))
+  # Dosya sunucuda yoksa curl hata verir; bu beklenen bir durum, betigi durdurmamali
+  $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  & curl.exe -s --user $cred "$base/$remote" -o $local 2>&1 | Out-Null
+  $ok = ($LASTEXITCODE -eq 0 -and (Test-Path $local))
+  $ErrorActionPreference = $old
+  if (-not $ok -and (Test-Path $local)) { Remove-Item $local -Force }
+  return $ok
 }
 function Up([string]$local, [string]$remote) {
   & curl.exe -s -S --ftp-create-dirs --user $cred -T $local "$base/$remote"
