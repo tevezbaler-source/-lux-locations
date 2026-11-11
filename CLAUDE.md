@@ -10,7 +10,7 @@ Site, mobil uygulama ve ekip paneli tek depoda (npm workspaces).
 | Klasör | İçerik |
 | --- | --- |
 | `apps/mobile` | Expo (React Native) uygulaması, iOS + Android. Expo Router, `src/app`, `src/components`, `src/constants`, `src/hooks` |
-| `apps/web` | Next.js sitesi (ileride `/panel` ekip paneli) |
+| `apps/web` | Next.js sitesi (ileride `/panel` ekip paneli). 11 dil: Türkçe kökte (`app/(tr)`), diğerleri `/en/`, `/ar/` … (`app/[lang]`). Sayfa gövdeleri `src/views`, metinler `src/i18n/dict/<dil>.ts` (Türkçe metin `@lux/shared`'den gelir; yeni metin her dil dosyasına eklenmeli, tip kontrolü eksikleri yakalar) |
 | `packages/shared` | Ortak içerik: 6 hizmet, şehirler, iletişim, talep formu kuralları, renkler (`@lux/shared`) |
 | `supabase` | `migrations/` (şema) ve `seed.sql` (başlangıç içeriği) |
 

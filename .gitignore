@@ -3,3 +3,9 @@ node_modules/
 .env*.local
 .DS_Store
 *.log
+
+# Site düzenleyicinin sunucuda oluşturduğu veriler (depoya girmez)
+apps/web/public/lx-content/data/*
+!apps/web/public/lx-content/data/.htaccess
+apps/web/public/lx-content/uploads/*
+!apps/web/public/lx-content/uploads/.htaccess
