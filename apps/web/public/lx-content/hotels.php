@@ -438,13 +438,15 @@ function lx_home_rail($html, $lang)
         . '@media(prefers-reduced-motion:reduce){.hr-track{animation:none}.hr-viewport{overflow-x:auto;padding-inline:22px}.hr-copy,.hr-toggle{display:none}}'
         . '</style>';
     $js = '<script id="home-hotel-rail-script">(function(){var M=' . json_encode($markup, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ',P=' . json_encode($ui['pause'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ',S=' . json_encode($ui['play'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';'
-        . 'function mount(){var sl=document.querySelector("section.slider");if(!sl||document.querySelector(".home-hotel-rail:not(.hr-manual)"))return;sl.insertAdjacentHTML("afterend",M);'
-        . 'var r=document.querySelector(".home-hotel-rail"),g=r.querySelector(".hr-group"),c=g.cloneNode(true);c.classList.add("hr-copy");c.setAttribute("aria-hidden","true");'
+        . 'function mount(){var sl=document.querySelector("section.slider");if(!sl||document.getElementById("hr-live"))return;sl.insertAdjacentHTML("afterend",M);'
+        . 'var r=sl.nextElementSibling;r.id="hr-live";var g=r.querySelector(".hr-group"),c=g.cloneNode(true);c.classList.add("hr-copy");c.setAttribute("aria-hidden","true");'
         . '[].forEach.call(c.querySelectorAll("a"),function(a){a.tabIndex=-1});g.after(c);var t=r.querySelector(".hr-toggle");'
         . 'function man(on){r.classList.toggle("hr-manual",on);t.setAttribute("aria-pressed",String(on));t.textContent=on?S:P}'
         . 't.addEventListener("click",function(){man(!r.classList.contains("hr-manual"))});'
         . 'g.addEventListener("focusin",function(ev){man(true);ev.target.scrollIntoView({block:"nearest",inline:"nearest"})})}'
-        . 'if(document.readyState==="complete")mount();else window.addEventListener("load",mount,{once:true})})()</script>';
+        // Telefonda "load" geç gelebilir: React sayfayı devraldığı anda (ya da load ile) eklenir; React kaldırırsa 25 sn boyunca yeniden eklenir
+        . 'function ready(sl){return document.readyState==="complete"||Object.keys(sl).some(function(k){return k.indexOf("__reactFiber")===0})}'
+        . 'var n=0,iv=setInterval(function(){var sl=document.querySelector("section.slider");if(sl&&!document.getElementById("hr-live")&&ready(sl))mount();if(++n>100)clearInterval(iv)},250)})()</script>';
     $p = stripos($html, '</head>');
     if ($p !== false) $html = substr($html, 0, $p) . $css . substr($html, $p);
     // noscript: slider bölümünün hemen ardına
