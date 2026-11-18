@@ -61,7 +61,7 @@ Yöneticinin kendi şifresi unutulduysa, panel klasöründe komut satırından:
 ```bat
 D:\php\php.exe tools\sifre-sifirla.php
 ```
-Kullanıcıları listeler, kullanıcı adını ve yeni şifreyi sorar. Bu dosya tarayıcıdan açılamaz; sunucuda cPanel Terminal ile çalıştırılır.
+Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adını ve yeni şifreyi sorar. Bu dosya tarayıcıdan açılamaz; sunucuda cPanel Terminal ile çalıştırılır.
 
 ## Roller
 

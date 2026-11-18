@@ -1,7 +1,7 @@
 <?php
 // Unutulan şifreyi sıfırlar. Yalnızca komut satırından çalışır:
 //   php tools/sifre-sifirla.php
-// Kullanıcıları listeler, kullanıcı adını ve yeni şifreyi sorar. İşlem kaydına yazılır.
+// Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adını ve yeni şifreyi sorar. İşlem kaydına yazılır.
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
 define('LX_PANEL', 1);
 date_default_timezone_set('Europe/Istanbul');
@@ -22,12 +22,18 @@ $u = null;
 foreach ($users as $x) if ($x['username'] === $username) $u = $x;
 if (!$u) { echo "Bu kullanıcı adı yok.\n"; exit(1); }
 
+$newUser = mb_strtolower($ask('Yeni kullanıcı adı (aynı kalsın diyorsanız boş bırakıp Enter): '));
+if ($newUser !== '' && $newUser !== $username) {
+    if (!preg_match('/^[a-z0-9._-]{3,60}$/', $newUser)) { echo "Kullanıcı adı en az 3 harf olmalı; Türkçe karakter ve boşluk kullanmayın.\n"; exit(1); }
+    foreach ($users as $x) if ($x['username'] === $newUser) { echo "Bu kullanıcı adı zaten var.\n"; exit(1); }
+} else $newUser = $username;
+
 $p1 = $ask('Yeni şifre (en az 8 karakter): ');
 if ($e = validate_password($p1)) { echo "$e\n"; exit(1); }
 $p2 = $ask('Yeni şifre (tekrar): ');
 if ($p1 !== $p2) { echo "Şifreler aynı değil.\n"; exit(1); }
 
-q('UPDATE users SET pass_hash = ?, active = 1 WHERE id = ?', [password_hash($p1, PASSWORD_DEFAULT), $u['id']], $pdo);
+q('UPDATE users SET username = ?, pass_hash = ?, active = 1 WHERE id = ?', [$newUser, password_hash($p1, PASSWORD_DEFAULT), $u['id']], $pdo);
 q('DELETE FROM login_attempts WHERE username = ?', [$username], $pdo);
-audit('user', (int)$u['id'], 'sifre', "Şifre komut satırından sıfırlandı: {$u['username']}", null, null, $pdo, ['id' => null, 'name' => 'Sistem (şifre sıfırlama)']);
-echo "\nTamam. {$u['username']} kullanıcısı yeni şifreyle giriş yapabilir.\n";
+audit('user', (int)$u['id'], 'sifre', "Şifre komut satırından sıfırlandı: {$u['username']}" . ($newUser !== $username ? " (yeni kullanıcı adı: $newUser)" : ''), null, null, $pdo, ['id' => null, 'name' => 'Sistem (şifre sıfırlama)']);
+echo "\nTamam. Giriş: kullanıcı adı \"$newUser\" ve yeni şifreniz.\n";
