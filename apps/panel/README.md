@@ -54,6 +54,15 @@ PC'de girdiğiniz gerçek verileri sunucuya taşımak gerekirse söyleyin; SQLit
 - **Site dışı kopya:** Yönetici, **İşlem kaydı** sayfasındaki **Yedek indir (JSON)** düğmesiyle tüm verinin JSON yedeğini indirir.
   Haftada bir indirip PC'de `D:\` altında saklayın.
 
+## Şifre unutulursa
+
+Yönetici başka bir kullanıcının şifresini **Kullanıcılar** sayfasından değiştirebilir.
+Yöneticinin kendi şifresi unutulduysa, panel klasöründe komut satırından:
+```bat
+D:\php\php.exe tools\sifre-sifirla.php
+```
+Kullanıcıları listeler, kullanıcı adını ve yeni şifreyi sorar. Bu dosya tarayıcıdan açılamaz; sunucuda cPanel Terminal ile çalıştırılır.
+
 ## Roller
 
 | Rol | Yapabildikleri |
