@@ -33,23 +33,26 @@ Aynı ağdaki başka bilgisayarlardan denemek için `D:\php\php.exe -S 0.0.0.0:8
 
 ## 2. Siteye taşıma (luxlocationstours.com/panel/)
 
-1. cPanel → **MySQL Databases**: bir veritabanı ve kullanıcı oluşturun, kullanıcıya tüm yetkileri verin.
-2. `config.sample.php` dosyasını `config.php` olarak kopyalayın: `'driver' => 'mysql'` yapın, veritabanı adı, kullanıcı ve şifreyi yazın.
-3. `apps/panel` klasörünün içeriğini FTP ile sunucuda `public_html/panel/` altına yükleyin.
-   `data/*.sqlite` dosyalarını yüklemeyin. `/admin/` ve sitenin diğer dosyalarına dokunmayın.
-4. https://luxlocationstours.com/panel/ açın, yönetici hesabını oluşturun, kullanıcıları ekleyin.
-5. `lib/`, `data/`, `tools/` klasörlerinde `.htaccess` var; tarayıcıdan açılamazlar. Kontrol için
-   https://luxlocationstours.com/panel/lib/db.php adresi **403** vermeli.
+Hosting IHS, yönetim paneli **Plesk**. Sitenin kök klasörü FTP'de `httpdocs`.
 
-PC'de girdiğiniz gerçek verileri sunucuya taşımak gerekirse söyleyin; SQLite'tan MySQL'e aktarma betiği eklenir.
+1. Önce FTP ve Plesk şifrelerini değiştirin (panelde fiyat, kâr ve acente bilgileri olacak).
+2. Plesk → **Web Siteleri ve Alan Adları → PHP**: sürüm **8.2 veya üstü** olmalı (asistan kütüphanesi bunu ister).
+3. Plesk → **Veritabanları → Veritabanı Ekle**: MySQL/MariaDB, bir veritabanı adı ve kullanıcı oluşturun. Şifreyi siz belirleyin.
+4. `config.sample.php` dosyasını `config.php` olarak kopyalayın: `'driver' => 'mysql'`, veritabanı adı, kullanıcı ve şifre.
+5. `apps/panel` klasörünün içeriğini `vendor/` dahil FTP ile `httpdocs/panel/` altına yükleyin.
+   `data/*.sqlite` dosyalarını yüklemeyin. `/admin/` ve sitenin diğer dosyalarına dokunmayın.
+6. https://luxlocationstours.com/panel/ açın, yönetici hesabını oluşturun, kullanıcıları ekleyin.
+7. `lib/`, `data/`, `tools/`, `vendor/` tarayıcıdan açılamaz. Kontrol: https://luxlocationstours.com/panel/lib/db.php **403** vermeli.
+
+**PC'deki verileri taşımak:** `data/panel.sqlite` dosyasını sunucuda `httpdocs/panel/data/` altına yükleyin ve
+`tools/aktar-mysql.php` betiğini bir kez çalıştırın (Plesk → **Zamanlanmış Görevler → Görev Ekle → PHP betiği**, ardından **Şimdi çalıştır**).
+Kullanıcılar şifreleriyle birlikte, tüm kayıtlar ve işlem kaydı aktarılır. MySQL'de kayıt varsa betik hiçbir şeyin üzerine yazmaz.
+Bittikten sonra sunucudaki `data/panel.sqlite` dosyasını silin. Bu durumda 6. adımdaki yönetici kurulumu çıkmaz; PC'deki kullanıcıyla girilir.
 
 ## 3. Yedek (site çökse de geçmiş kaybolmasın)
 
 - Panelde hiçbir kayıt gerçekten silinmez (iptal ve silme işaretlenir, tarihçe kalır).
-- cPanel → **Cron Jobs**, her gece 03:00:
-  ```
-  php /home/KULLANICI/public_html/panel/tools/backup.php
-  ```
+- Plesk → **Zamanlanmış Görevler → Görev Ekle → PHP betiği**: `httpdocs/panel/tools/backup.php`, her gün 03:00.
   `data/backups/` altına sıkıştırılmış tam yedek yazar, 60 günden eskileri siler.
 - **Site dışı kopya:** Yönetici, **İşlem kaydı** sayfasındaki **Yedek indir (JSON)** düğmesiyle tüm verinin JSON yedeğini indirir.
   Haftada bir indirip PC'de `D:\` altında saklayın.
@@ -79,7 +82,7 @@ Yöneticinin kendi şifresi unutulduysa, panel klasöründe komut satırından:
 ```bat
 D:\php\php.exe tools\sifre-sifirla.php
 ```
-Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adını ve yeni şifreyi sorar. Bu dosya tarayıcıdan açılamaz; sunucuda cPanel Terminal ile çalıştırılır.
+Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adını ve yeni şifreyi sorar. Bu dosya tarayıcıdan açılamaz; soru sorduğu için sunucuda değil PC'de çalışır; sunucudaki yönetici şifresi unutulursa diğer yönetici değiştirir ya da Claude'a yazın.
 
 ## Roller
 
@@ -100,4 +103,5 @@ Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adın
 | `lib/calc.php` | Alış/satış/free/PP/kur ve kâr hesabı, uyarılar |
 | `lib/data.php` | Kayıt, sürüm kontrolü (aynı anda düzenleme), iptal/devir/taşıma |
 | `lib/sample.php` | Eğitim bölümünün örnek verileri |
-| `tools/backup.php` | Gece yedeği (cron) |
+| `tools/backup.php` | Gece yedeği (zamanlanmış görev) |
+| `tools/aktar-mysql.php` | PC verisini (SQLite) sunucu MySQL'ine bir kez aktarma |
