@@ -16,7 +16,8 @@ return [
 
     // Sesli asistan (isteğe bağlı). Anahtarı buraya yazabilir ya da yönetici olarak panelde asistan penceresinden girebilirsiniz.
     'anthropic_api_key' => '',
-    'assistant_model'   => 'claude-opus-5-5',
+    // Ucuz ve hızlı: claude-haiku-5-5. Karmaşık isteklerde daha iyi ama pahalı: claude-sonnet-5-5 veya claude-opus-5-5.
+    'assistant_model'   => 'claude-haiku-5-5',
     'assistant_effort'  => 'medium',
 
     // Oturum süresi (dakika)

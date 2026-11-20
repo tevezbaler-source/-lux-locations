@@ -441,17 +441,18 @@ function asst_block_array($block): array {
 function asst_call(array $messages): array {
     $c = lx_config();
     $client = asst_client();
-    $resp = $client->beta->messages->create(
-        model: $c['assistant_model'] ?? 'claude-opus-5-5',
-        maxTokens: 16000,
-        system: asst_system(),
-        tools: asst_tools(),
-        messages: $messages,
-        outputConfig: ['effort' => $c['assistant_effort'] ?? 'medium'],
-        cacheControl: ['type' => 'ephemeral'],
-        fallbacks: 'default',
-        betas: ['server-side-fallback-2026-07-01'],
-    );
+    $model = $c['assistant_model'] ?? 'claude-haiku-5-5';
+    // Yedek model (sunucu yoğunsa) Haiku'da yok; yalnızca diğer modellerde istenir.
+    $fb = str_contains($model, 'haiku') ? [] : ['fallbacks' => 'default', 'betas' => ['server-side-fallback-2026-07-01']];
+    $resp = $client->beta->messages->create(...[
+        'model' => $model,
+        'maxTokens' => 16000,
+        'system' => asst_system(),
+        'tools' => asst_tools(),
+        'messages' => $messages,
+        'outputConfig' => ['effort' => $c['assistant_effort'] ?? 'medium'],
+        'cacheControl' => ['type' => 'ephemeral'],
+    ] + $fb);
     return ['stop' => $resp->stopReason, 'content' => array_map('asst_block_array', $resp->content)];
 }
 

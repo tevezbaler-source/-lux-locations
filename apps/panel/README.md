@@ -73,7 +73,8 @@ Kurulum:
 2. API anahtarı: https://console.anthropic.com → API Keys → yeni anahtar. Yönetici olarak panele girip asistan penceresine yapıştırın
    (`data/asistan-anahtar.php` dosyasına yazılır, ekranda bir daha gösterilmez). İsterseniz `config.php` içindeki `anthropic_api_key` alanına da yazabilirsiniz.
    Anahtarı değiştirmek için `data/asistan-anahtar.php` dosyasını silip yeniden girin.
-3. Kullandıkça ücretlendirilir; Console'da aylık harcama sınırı koyabilirsiniz.
+3. Kullandıkça ücretlendirilir (varsayılan model Haiku: basit bir komut yaklaşık 0,1-0,3 sent). Console'da aylık harcama sınırı koyabilirsiniz.
+   Model `config.php` içindeki `assistant_model` ile değişir; karmaşık işler için `claude-sonnet-5-5`.
 
 ## Şifre unutulursa
 
