@@ -5,3 +5,4 @@
     RedirectMatch 403 /config(\.sample)?\.php$
 </IfModule>
 Options -Indexes
+DirectoryIndex index.php
