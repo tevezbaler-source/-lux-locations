@@ -86,7 +86,7 @@ function validate_password(string $p): ?string {
 function audit(string $entity, ?int $id, string $action, string $summary, $old = null, $new = null, ?PDO $pdo = null, ?array $user = null): void {
     $user = $user ?: current_user();
     q('INSERT INTO audit_log (at, user_id, user_name, ip, entity, entity_id, action, summary, old_json, new_json) VALUES (?,?,?,?,?,?,?,?,?,?)', [
-        now(), $user['id'] ?? null, $user['name'] ?? null, client_ip(), $entity, $id, $action, mb_substr($summary, 0, 255),
+        now(), $user['id'] ?? null, $user['name'] ?? null, client_ip(), $entity, $id, $action, mb_substr($summary . (!empty($GLOBALS['LX_VIA_ASSISTANT']) ? ' (sesli asistan)' : ''), 0, 255),
         $old === null ? null : json_encode($old, JSON_UNESCAPED_UNICODE),
         $new === null ? null : json_encode($new, JSON_UNESCAPED_UNICODE),
     ], $pdo ?: db());

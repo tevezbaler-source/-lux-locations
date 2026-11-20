@@ -120,7 +120,7 @@
 
   /* ---------- iskelet ---------- */
   const NAV = [
-    ['', 'Oteller', null], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null],
+    ['', 'Oteller', null], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
@@ -139,12 +139,12 @@
         <span class="spacer"></span><a href="#/egitim" style="color:#fff;text-decoration:underline">Eğitim rehberi</a>
         <button id="btnReset">Örnek verileri baştan yükle</button><button id="btnMode2">Gerçek panele dön</button></div>` : ''}
       <main id="main"></main>`;
-    qs('#btnOut').onclick = async () => { await api('logout', {}, {}); await loadSession(); renderLogin(); };
+    qs('#btnOut').onclick = async () => { await api('logout', {}, {}); await loadSession(); A.log = []; A.status = null; asstToggle(false).catch(() => {}); asstHide(); stopPoll(); renderLogin(); };
     const toggle = async () => {
       if (S.dirty && !(await confirmBox('Kaydedilmemiş değişiklik', 'Bu sayfadaki değişiklikler kaydedilmedi. Yine de geçilsin mi?'))) return;
       S.dirty = false;
       const r = await api('mode', {}, { egitim: !S.egitim });
-      S.egitim = r.egitim; S.lastAudit = 0;
+      S.egitim = r.egitim; S.lastAudit = 0; A.log = []; A.mode = S.egitim; asstRender();
       toast(S.egitim ? 'Eğitim bölümüne geçtiniz: örnek veriler.' : 'Gerçek panele döndünüz.', 'ok');
       go(S.egitim ? '#/egitim' : '#/');
       route();
@@ -187,6 +187,7 @@
     if (!S.user) return;
     const { parts, params } = parseHash();
     const main = shell();
+    if (A.el && A.mode !== S.egitim) { A.log = []; A.mode = S.egitim; asstRender(); }
     S.view = null; S.dirty = false;
     window.scrollTo(0, 0);
     try {
@@ -197,6 +198,7 @@
         case 'acenteler': return await viewAgencies(main);
         case 'acente': return await viewAgency(main, +parts[1]);
         case 'kurlar': return await viewFx(main);
+        case 'notlar': return await viewNotes(main, params);
         case 'otel-yonetimi': return await viewHotelAdmin(main);
         case 'kullanicilar': return await viewUsers(main);
         case 'kayit': return await viewAudit(main, params);
@@ -838,9 +840,203 @@
     if (gt) gt.onclick = async () => { const r = await api('mode', {}, { egitim: true }); S.egitim = r.egitim; S.lastAudit = 0; toast('Eğitim bölümüne geçtiniz.', 'ok'); route(); };
   }
 
+  /* ================= NOT DEFTERİ ================= */
+  async function viewNotes(main, p) {
+    const all = p.hepsi === '1';
+    const [d, hs, ag] = await Promise.all([api('notes', all ? { all: 1 } : {}), api('hotels'), api('agency_names')]);
+    const t = today();
+    const noteRow = (n) => {
+      const late = !+n.done && n.due_date && n.due_date < t;
+      const links = [n.hotel_name && `<a href="#/otel/${n.hotel_id}">${esc(n.hotel_name)}</a>`, n.agency_name && `<a href="#/acente/${n.agency_id}">${esc(n.agency_name)}</a>`,
+        n.booking_id && `<a href="#/grup/${n.booking_id}">${esc(n.booking_code || 'grup')}</a>`].filter(Boolean).join(' · ');
+      return `<div class="note ${+n.done ? 'done' : ''} ${late ? 'late' : ''}">
+        <label class="chk"><input type="checkbox" data-id="${n.id}" ${+n.done ? 'checked' : ''}></label>
+        <div class="nb"><div class="nt">${esc(n.text)}</div>
+          <div class="small muted">${n.due_date ? `<b class="${late ? 'neg' : ''}">${trDate(n.due_date)}</b> · ` : ''}${links ? links + ' · ' : ''}${esc(n.created_by_name || '')} ${trDT(n.created_at)}${n.via === 'asistan' ? ' · sesli asistan' : ''}${+n.done ? ` · yapıldı: ${esc(n.done_by_name || '')} ${trDT(n.done_at)}` : ''}</div></div></div>`;
+    };
+    main.innerHTML = `<div class="row"><h1>Notlar</h1><span class="spacer"></span><a class="btn" href="#/notlar${all ? '' : '?hepsi=1'}">${all ? 'Yalnız açık notlar' : 'Yapılanları da göster'}</a></div>
+      <div class="muted small" style="margin-bottom:10px">Hatırlatmalar ve ofis notları. Sesli asistana "not al" diyerek de ekleyebilirsiniz.</div>
+      <form class="panel" id="nf"><div class="grid-form">
+        <label class="f wide">Not<textarea name="text" required placeholder="ör. Pazartesi Glorious'u ara, Harun Bey yaz fiyatını verecek"></textarea></label>
+        <label class="f">Hatırlatma tarihi<input type="date" name="due_date"></label>
+        <label class="f">Otel<select name="hotel_id"><option value="">—</option>${hs.hotels.map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label>
+        <label class="f">Acente<select name="agency_id"><option value="">—</option>${ag.agencies.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label>
+      </div><div class="row" style="margin-top:10px"><button class="primary">Notu ekle</button></div></form>
+      <div class="notes">${d.notes.map(noteRow).join('') || '<div class="empty">Açık not yok.</div>'}</div>`;
+    const f = qs('#nf', main);
+    f.onsubmit = async (e) => { e.preventDefault(); try { await api('note_save', {}, Object.fromEntries(new FormData(f))); toast('Not eklendi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
+    qsa('.note input[type=checkbox]', main).forEach((c) => c.onchange = async () => {
+      try { await api('note_done', {}, { id: +c.dataset.id, done: c.checked }); route(); } catch (er) { toast(er.message, 'err'); c.checked = !c.checked; }
+    });
+    S.view = { onRemote: () => viewNotes(main, p) };
+  }
+
+  /* ================= SESLİ ASİSTAN ================= */
+  const A = { el: null, open: false, busy: false, log: [], rec: null, listening: false, speak: false, status: null, mode: null };
+  try { A.speak = localStorage.getItem('lx_asst_speak') === '1'; } catch (e) { /* yok */ }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function asstHide() { if (A.el) A.el.classList.add('hidden'); }
+
+  function asstMount() {
+    if (!A.el) {
+      A.el = document.createElement('div');
+      A.el.id = 'asst';
+      A.el.innerHTML = `
+        <button class="asst-fab" id="asstFab" title="Sesli asistan (Ctrl + Boşluk)"><span class="mic-ico">🎤</span><span>Asistan</span></button>
+        <aside class="asst-panel" aria-label="Sesli asistan">
+          <div class="asst-head"><b>Sesli asistan</b><span class="spacer"></span>
+            <label class="small" title="Asistanın cevabını sesli okur"><input type="checkbox" id="asstSpeak"> Sesli cevap</label>
+            <button class="link" id="asstNew" title="Konuşmayı temizle">Yeni konuşma</button><button class="link" id="asstClose" title="Kapat">✕</button></div>
+          <div class="asst-log" id="asstLog"></div>
+          <form class="asst-input" id="asstForm">
+            <button type="button" class="asst-mic" id="asstMic" title="Basın ve konuşun">🎤</button>
+            <textarea id="asstText" rows="2" placeholder="Konuşun ya da yazın: &quot;Glorious'a Marwen için 10 Aralık'tan 3 gece 10 DBL opsiyon aç, satış 55 dolar&quot;"></textarea>
+            <button class="primary" id="asstSend">Gönder</button>
+          </form>
+        </aside>`;
+      document.body.appendChild(A.el);
+      qs('#asstFab').onclick = () => asstToggle(true, true);
+      qs('#asstClose').onclick = () => asstToggle(false);
+      qs('#asstNew').onclick = async () => { try { await api('assistant_reset', {}, {}); } catch (e) { /* önemsiz */ } A.log = []; asstRender(); };
+      qs('#asstSpeak').checked = A.speak;
+      qs('#asstSpeak').onchange = (e) => { A.speak = e.target.checked; try { localStorage.setItem('lx_asst_speak', A.speak ? '1' : '0'); } catch (er) { /* yok */ } if (!A.speak) speechSynthesis?.cancel(); };
+      qs('#asstForm').onsubmit = (e) => { e.preventDefault(); asstSend(); };
+      qs('#asstText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); asstSend(); } });
+      qs('#asstMic').onclick = () => asstListen();
+      if (!SR) qs('#asstMic').classList.add('hidden');
+      document.addEventListener('keydown', (e) => { if (e.ctrlKey && e.code === 'Space' && S.user) { e.preventDefault(); asstToggle(true, true); } });
+    }
+    A.el.classList.remove('hidden');
+    if (A.mode !== null && A.mode !== S.egitim) { A.log = []; asstRender(); }
+    A.mode = S.egitim;
+  }
+
+  async function asstToggle(open, listen = false) {
+    if (!A.el) return;
+    A.open = open;
+    A.el.classList.toggle('open', open);
+    if (!open) { asstStopListen(); return; }
+    if (!A.status) { try { A.status = await api('assistant_status'); } catch (e) { A.status = { configured: false }; } }
+    asstRender();
+    if (!A.status.configured) return;
+    if (listen && SR && !A.busy) asstListen(); else qs('#asstText').focus();
+  }
+
+  function asstAdd(entry) { A.log.push(entry); asstRender(); }
+
+  function asstRender() {
+    const box = qs('#asstLog');
+    if (!box) return;
+    let html = '';
+    if (A.status && !A.status.configured) {
+      if (!A.status.installed) html += `<div class="asst-msg sys">Asistan kütüphanesi kurulmamış (vendor klasörü). Kurulum için README'deki "Sesli asistan" bölümüne bakın.</div>`;
+      else if (A.status.can_set_key) html += `<div class="asst-msg sys"><b>Asistanı açmak için API anahtarı gerekiyor.</b><br>console.anthropic.com adresinde "API Keys" bölümünden bir anahtar oluşturup buraya yapıştırın. Anahtar yalnız bu sunucuda saklanır, ekranda bir daha gösterilmez.
+        <form id="asstKey" class="row" style="margin-top:8px"><input name="key" type="password" autocomplete="off" placeholder="sk-ant-..." style="flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:6px"><button class="primary">Kaydet</button></form></div>`;
+      else html += `<div class="asst-msg sys">Asistan henüz açılmadı. Yöneticinin API anahtarını girmesi gerekiyor.</div>`;
+    } else if (!A.log.length) {
+      html += `<div class="asst-msg sys">Ne yapmak istediğinizi söyleyin. Örnekler:<br>
+        • "Bu ay en çok kâr eden üç otel hangisi?"<br>• "LUX6302'yi konfirme et"<br>• "Tudan'ın Ramada grubunu Hello'ya devret"<br>• "Bugünün kuru euro 50,10 dolar 43,05"<br>• "Not al: yarın Harun Bey'i ara"<br>
+        Kayıtları değiştiren her işlemden önce onay kartı çıkar. Notlar onaysız eklenir.${SR ? '' : '<br><b>Bu tarayıcı sesle yazmayı desteklemiyor; Chrome veya Edge kullanın ya da yazın.</b>'}</div>`;
+    }
+    A.log.forEach((m, i) => {
+      if (m.kind === 'user') html += `<div class="asst-msg me">${esc(m.text)}</div>`;
+      else if (m.kind === 'wait') html += `<div class="asst-msg bot wait">Düşünüyorum…</div>`;
+      else if (m.kind === 'err') html += `<div class="asst-msg err">${esc(m.text)}</div>`;
+      else if (m.kind === 'bot') {
+        html += (m.done || []).map((d) => `<div class="asst-done">✓ ${d.link ? `<a href="${esc(d.link)}">${esc(d.summary)}</a>` : esc(d.summary)}</div>`).join('');
+        if (m.text) html += `<div class="asst-msg bot">${esc(m.text).replace(/\n/g, '<br>')}</div>`;
+        if (m.proposals && m.proposals.length) {
+          html += `<div class="asst-card ${m.decided ? 'decided' : ''}">${m.proposals.map((p) => `<div class="pc"><b>${esc(p.title)}</b>${p.lines.map((l) => `<div class="small">${esc(l)}</div>`).join('')}
+            ${p.calc ? `<div class="pcalc">Kâr: <b class="${p.calc.profit_eur < 0 ? 'neg' : ''}">${money(p.calc.profit_eur, 'EUR')}</b> · ${money(p.calc.profit_usd, 'USD')} · ${money0(p.calc.profit_try, 'TRY')}<span class="muted"> (alış ${money(p.calc.buy[0], p.calc.buy[1])}, satış ${money(p.calc.sell[0], p.calc.sell[1])})</span></div>
+              ${p.calc.warnings.map((w) => `<div class="w ${w.level}">${esc(w.msg)}</div>`).join('')}` : ''}</div>`).join('')}
+            ${m.decided ? `<div class="small muted">${m.decided === 'yes' ? 'Onaylandı.' : 'Vazgeçildi.'}</div>` : `<div class="row"><button class="ok" data-yes="${i}">Onayla</button><button data-no="${i}">Vazgeç</button></div>`}</div>`;
+        }
+      }
+    });
+    box.innerHTML = html;
+    const kf = qs('#asstKey', box);
+    if (kf) kf.onsubmit = async (e) => {
+      e.preventDefault();
+      try { A.status = await api('assistant_key', {}, { key: kf.key.value }); kf.reset(); toast(A.status.configured ? 'Asistan açıldı.' : 'Anahtar kaydedilemedi.', A.status.configured ? 'ok' : 'err'); asstRender(); }
+      catch (er) { toast(er.message, 'err'); }
+    };
+    qsa('[data-yes]', box).forEach((b) => b.onclick = () => asstDecide(+b.dataset.yes, true));
+    qsa('[data-no]', box).forEach((b) => b.onclick = () => asstDecide(+b.dataset.no, false));
+    box.scrollTop = box.scrollHeight;
+    const busy = A.busy;
+    ['#asstSend', '#asstMic'].forEach((s) => { const el = qs(s); if (el) el.disabled = busy || !(A.status && A.status.configured); });
+  }
+
+  async function asstRun(call) {
+    A.busy = true;
+    asstAdd({ kind: 'wait' });
+    try {
+      const r = await call();
+      A.log = A.log.filter((m) => m.kind !== 'wait');
+      asstAdd({ kind: 'bot', text: r.reply, proposals: r.proposals, done: r.done });
+      if (A.speak && r.reply && window.speechSynthesis) {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(r.reply.replace(/[*_#`]/g, '')); u.lang = 'tr-TR'; speechSynthesis.speak(u);
+      }
+      if ((r.done || []).length && !S.dirty) { S.lastAudit = 0; route(); }
+    } catch (e) {
+      A.log = A.log.filter((m) => m.kind !== 'wait');
+      asstAdd({ kind: 'err', text: e.message });
+    } finally { A.busy = false; asstRender(); }
+  }
+
+  function asstSend(text) {
+    const ta = qs('#asstText');
+    const t = (text ?? ta.value).trim();
+    if (!t || A.busy) return;
+    ta.value = '';
+    A.log.forEach((m) => { if (m.proposals && m.proposals.length && !m.decided) m.decided = 'no'; });
+    asstAdd({ kind: 'user', text: t });
+    asstRun(() => api('assistant', {}, { text: t }));
+  }
+
+  function asstDecide(i, yes) {
+    const m = A.log[i];
+    if (!m || m.decided || A.busy) return;
+    m.decided = yes ? 'yes' : 'no';
+    asstRun(() => api('assistant_confirm', {}, { approve: yes }));
+  }
+
+  function asstStopListen() { if (A.rec) { try { A.rec.abort(); } catch (e) { /* yok */ } } A.rec = null; A.listening = false; qs('#asstMic')?.classList.remove('on'); }
+
+  function asstListen() {
+    if (!SR || A.busy) return;
+    if (A.listening) { A.rec?.stop(); return; }
+    window.speechSynthesis?.cancel();
+    const rec = new SR();
+    rec.lang = 'tr-TR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    const ta = qs('#asstText');
+    let finalText = '';
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      ta.value = (finalText + ' ' + interim).trim();
+    };
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Mikrofon izni verilmedi. Tarayıcının adres çubuğundaki mikrofon simgesinden izin verin.', 'err');
+      else if (e.error === 'no-speech') toast('Ses duyulmadı, tekrar deneyin.');
+      else if (e.error !== 'aborted') toast('Ses tanıma hatası: ' + e.error, 'err');
+    };
+    rec.onend = () => {
+      A.listening = false; A.rec = null; qs('#asstMic')?.classList.remove('on');
+      if (finalText.trim()) asstSend(finalText);
+    };
+    A.rec = rec; A.listening = true; qs('#asstMic').classList.add('on');
+    try { rec.start(); } catch (e) { asstStopListen(); }
+  }
+
   /* ---------- başlangıç ---------- */
   function start() {
-    if (!S.user) return renderLogin();
+    if (!S.user) { asstHide(); return renderLogin(); }
+    asstMount();
     S.lastAudit = 0;
     poll();
     startPoll();

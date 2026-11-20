@@ -602,3 +602,53 @@ function hotel_detail(int $id, string $from, string $to): array {
     $h['history'] = q_all("SELECT at, user_name, action, summary FROM audit_log WHERE (entity = 'otel' AND entity_id = ?) ORDER BY id DESC LIMIT 30", [$id]);
     return $h;
 }
+
+/* ---------------- Not defteri ---------------- */
+
+function notes_list(bool $withDone = false, ?array $filter = null): array {
+    $w = $withDone ? '1=1' : 'done = 0'; $p = [];
+    foreach (['hotel_id', 'agency_id', 'booking_id'] as $k) if (!empty($filter[$k])) { $w .= " AND $k = ?"; $p[] = (int)$filter[$k]; }
+    $rows = q_all("SELECT * FROM notes WHERE $w ORDER BY done, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, id DESC LIMIT 300", $p);
+    $names = [];
+    foreach (q_all('SELECT id, name FROM users', [], db_main()) as $u) $names[$u['id']] = $u['name'];
+    foreach ($rows as &$r) {
+        $r['created_by_name'] = $names[$r['created_by']] ?? null;
+        $r['done_by_name'] = $names[$r['done_by']] ?? null;
+        $r['hotel_name'] = $r['hotel_id'] ? q_val('SELECT name FROM hotels WHERE id = ?', [$r['hotel_id']]) : null;
+        $r['agency_name'] = $r['agency_id'] ? q_val('SELECT name FROM agencies WHERE id = ?', [$r['agency_id']]) : null;
+        $r['booking_code'] = $r['booking_id'] ? q_val('SELECT code FROM bookings WHERE id = ?', [$r['booking_id']]) : null;
+    }
+    return $rows;
+}
+
+function note_save(array $in): array {
+    $text = clean_str($in['text'] ?? '', 4000);
+    if (!$text) throw new ApiError('Not boş olamaz.');
+    $data = ['text' => $text, 'due_date' => clean_date($in['due_date'] ?? ''), 'hotel_id' => clean_int($in['hotel_id'] ?? null),
+        'agency_id' => clean_int($in['agency_id'] ?? null), 'booking_id' => clean_int($in['booking_id'] ?? null)];
+    if ($data['hotel_id']) hotel_get($data['hotel_id']);
+    if ($data['agency_id'] && !q_one('SELECT id FROM agencies WHERE id = ?', [$data['agency_id']])) throw new ApiError('Acente bulunamadı.');
+    if ($data['booking_id']) { $b = booking_get($data['booking_id']); $data['hotel_id'] = $data['hotel_id'] ?: (int)$b['hotel_id']; $data['agency_id'] = $data['agency_id'] ?: ($b['agency_id'] ? (int)$b['agency_id'] : null); }
+    $id = clean_int($in['id'] ?? null);
+    if ($id) {
+        $old = q_one('SELECT * FROM notes WHERE id = ?', [$id]);
+        if (!$old) throw new ApiError('Not bulunamadı.', 404);
+        update_row('notes', $id, $data, clean_int($in['version'] ?? null));
+        audit('not', $id, 'guncelle', 'Not güncellendi: ' . mb_substr($text, 0, 120), $old, $data);
+    } else {
+        $data['via'] = !empty($GLOBALS['LX_VIA_ASSISTANT']) ? 'asistan' : null;
+        $id = insert_row('notes', $data + stamp_new());
+        audit('not', $id, 'ekle', 'Not: ' . mb_substr($text, 0, 150), null, $data);
+    }
+    return q_one('SELECT * FROM notes WHERE id = ?', [$id]);
+}
+
+function note_done(int $id, bool $done = true): array {
+    $old = q_one('SELECT * FROM notes WHERE id = ?', [$id]);
+    if (!$old) throw new ApiError('Not bulunamadı.', 404);
+    $u = current_user();
+    q('UPDATE notes SET done = ?, done_by = ?, done_at = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ?',
+        [$done ? 1 : 0, $done ? $u['id'] : null, $done ? now() : null, $u['id'], now(), $id]);
+    audit('not', $id, $done ? 'tamam' : 'geri_ac', ($done ? 'Not tamamlandı: ' : 'Not yeniden açıldı: ') . mb_substr($old['text'], 0, 120));
+    return q_one('SELECT * FROM notes WHERE id = ?', [$id]);
+}

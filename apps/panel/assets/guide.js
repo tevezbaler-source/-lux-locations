@@ -131,6 +131,22 @@ window.LX_GUIDE = {
         </ul>`
     },
     {
+      title: 'Sesli asistan ve notlar',
+      html: `
+        <p>Sağ alttaki <b>Asistan</b> düğmesine basın (ya da <b>Ctrl + Boşluk</b>) ve ne istediğinizi söyleyin. Mikrofon kırmızıyken dinliyordur; susunca söylediğiniz yazıya dökülüp gönderilir. İsterseniz yazarak da kullanabilirsiniz.</p>
+        <p>Örnekler:</p>
+        <ul>
+          <li>"Glorious'a Marwen için 10 Aralık'tan 3 gece 10 DBL opsiyon aç, alış sözleşmeden, satış 55 dolar, opsiyon 25 Kasım'a kadar."</li>
+          <li>"LUX6302'yi konfirme et, otelin konfirme kodu RM-4471."</li>
+          <li>"Bu hafta opsiyonu biten gruplar hangileri?" · "Bu ay en çok kâr eden otel hangisi?"</li>
+          <li>"Bugünün kuru euro 50,10, dolar 43,05."</li>
+          <li>"Not al: pazartesi Glorious'u ara, Harun Bey yaz fiyatını verecek."</li>
+        </ul>
+        <p>Kayıtları değiştiren her işlemde asistan önce bir <b>onay kartı</b> gösterir: ne yapacağını, kârı ve uyarıları yazar. <b>Onayla</b>'ya basmadan hiçbir şey değişmez. Kartı okuyun; yanlış anladıysa <b>Vazgeç</b> deyip düzeltin. Notlar onaysız eklenir.</p>
+        <p>Asistan da sizin hesabınızla çalışır: yetkiniz olmayan işi yapamaz ve yaptığı her şey işlem kaydına adınızla, "(sesli asistan)" notuyla yazılır.</p>
+        <p><b>Notlar</b> sayfasında ofisin hatırlatmaları durur. Tarihi geçen not kırmızı çizgiyle görünür; yapılınca kutucuğu işaretleyin.</p>`
+    },
+    {
       title: 'Altın kurallar',
       html: `
         <ol>
@@ -155,6 +171,8 @@ window.LX_GUIDE = {
     `Açtığınız grubu <b>Başka acenteye devret</b> ile <b>Hello</b> acentesine devredin. Eski grubun iptal olduğunu, yenisinin açıldığını görün.`,
     `<b>Kurlar</b> sayfasında bugünün tarihiyle yeni bir kur girin (ör. EUR 50,10 / USD 43,05). Konfirme edilmemiş grupların TL kârının değiştiğini, konfirme olanların değişmediğini kontrol edin.`,
     `<b>Grand Madrid</b>'deki <b>LUX6304</b> grubunun altındaki tarihçeye bakın; sizin yaptığınız değişikliklerin adınızla yazdığını görün.`,
+    `<b>Asistan</b> düğmesine basıp "Bu ay en çok kâr eden otel hangisi?" diye sorun. Sonra "Not al: yarın Hello Holidays'i ara" deyin ve notun <b>Notlar</b> sayfasına düştüğünü görün.`,
+    `Asistana "<b>LUX6307</b>'yi konfirme et" deyin. Onay kartını okuyun ve <b>Vazgeç</b>'e basın; grubun değişmediğini kontrol edin.`,
     `Bitirdiğinizde turuncu çubuktaki <b>Gerçek panele dön</b>'e basın. Gerçek panelde örnek verilerin hiçbirinin görünmediğini kontrol edin.`
   ]
 };

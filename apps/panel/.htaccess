@@ -1,0 +1,7 @@
+# Kütüphane, veri ve araç klasörleri ile composer dosyaları tarayıcıdan açılamaz.
+<IfModule mod_alias.c>
+    RedirectMatch 403 /(vendor|lib|data|tools)/
+    RedirectMatch 403 /composer\.(json|lock)$
+    RedirectMatch 403 /config(\.sample)?\.php$
+</IfModule>
+Options -Indexes

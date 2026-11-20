@@ -113,6 +113,11 @@ try {
             case 'users':
                 need('users');
                 out(['users' => q_all('SELECT id, username, name, role, active, created_at, last_login FROM users ORDER BY active DESC, name', [], db_main())]);
+            case 'notes':
+                out(['notes' => notes_list(!empty($_GET['all']))]);
+            case 'assistant_status':
+                require_once __DIR__ . '/lib/assistant.php';
+                out(asst_status());
             case 'backup':
                 need('backup');
                 if (!empty($_SESSION['egitim'])) throw new ApiError('Eğitim bölümündesiniz; yedek gerçek panelden alınır.');
@@ -168,6 +173,23 @@ try {
             out(agency_save($in));
         case 'fx_save':
             out(fx_save($in));
+        case 'note_save':
+            out(note_save($in));
+        case 'note_done':
+            out(note_done((int)($in['id'] ?? 0), !isset($in['done']) || !empty($in['done'])));
+        case 'assistant':
+            require_once __DIR__ . '/lib/assistant.php';
+            out(asst_message((string)($in['text'] ?? '')));
+        case 'assistant_confirm':
+            require_once __DIR__ . '/lib/assistant.php';
+            out(asst_confirm(!empty($in['approve'])));
+        case 'assistant_key':
+            require_once __DIR__ . '/lib/assistant.php';
+            out(asst_set_key((string)($in['key'] ?? '')));
+        case 'assistant_reset':
+            require_once __DIR__ . '/lib/assistant.php';
+            asst_reset();
+            out(['ok' => true]);
         case 'password':
             if (!password_verify((string)($in['old'] ?? ''), (string)q_val('SELECT pass_hash FROM users WHERE id = ?', [$u['id']], db_main()))) throw new ApiError('Mevcut şifre hatalı.');
             if ($e = validate_password((string)($in['new'] ?? ''))) throw new ApiError($e);

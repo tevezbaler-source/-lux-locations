@@ -105,6 +105,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     $tables['booking_free'] = "id $pk, booking_id INT NOT NULL, direction VARCHAR(3) NOT NULL, room_type VARCHAR(5) NOT NULL, qty INT NOT NULL";
     $tables['booking_services'] = "id $pk, booking_id INT NOT NULL, kind VARCHAR(30) NOT NULL, description VARCHAR(255) NULL, buy DECIMAL(12,2) NULL, sell DECIMAL(12,2) NULL, currency VARCHAR(3) NOT NULL";
     $tables['fx_rates'] = "id $pk, rate_date VARCHAR(10) NOT NULL, eur_try DECIMAL(12,4) NOT NULL, usd_try DECIMAL(12,4) NOT NULL, note VARCHAR(255) NULL, $meta";
+    $tables['notes'] = "id $pk, text $txt NOT NULL, hotel_id INT NULL, agency_id INT NULL, booking_id INT NULL, due_date VARCHAR(10) NULL, done INT NOT NULL DEFAULT 0, done_by INT NULL, done_at VARCHAR(19) NULL, via VARCHAR(20) NULL, $meta";
     $tables['audit_log'] = "id $pk, at VARCHAR(19) NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, ip VARCHAR(64) NULL, entity VARCHAR(30) NOT NULL, entity_id INT NULL, action VARCHAR(30) NOT NULL, summary VARCHAR(255) NULL, old_json $txt NULL, new_json $txt NULL";
 
     foreach ($tables as $name => $cols) {

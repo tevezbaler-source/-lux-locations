@@ -54,6 +54,24 @@ PC'de girdiğiniz gerçek verileri sunucuya taşımak gerekirse söyleyin; SQLit
 - **Site dışı kopya:** Yönetici, **İşlem kaydı** sayfasındaki **Yedek indir (JSON)** düğmesiyle tüm verinin JSON yedeğini indirir.
   Haftada bir indirip PC'de `D:\` altında saklayın.
 
+## Sesli asistan
+
+Sağ alttaki **Asistan** düğmesi (ya da Ctrl + Boşluk) asistan penceresini açar. Konuşarak ya da yazarak panelde her işi yaptırabilirsiniz:
+grup açma/güncelleme/konfirme, iptal, devir, taşıma, kur, otel, sözleşme, kontenjan, acente ve not. Sorulara panel verisiyle cevap verir.
+
+- Kayıtları değiştiren her işlemden önce **onay kartı** çıkar; "Onayla" denmeden hiçbir şey değişmez. Notlar onaysız eklenir.
+- Asistan, giren kullanıcının rolünün izin verdiği işleri yapabilir. Yaptığı her şey işlem kaydına kullanıcının adıyla, "(sesli asistan)" notuyla düşer.
+- Ses tanıma Chrome ve Edge'de çalışır (tarayıcının kendi servisi). Sitede HTTPS gerekir; localhost'ta da çalışır. "Sesli cevap" kutusu cevabı sesli okutur.
+- Komutlar ve ilgili panel verileri (otel, acente, fiyat) yapay zekâ servisine (Anthropic Claude API) gönderilir.
+
+Kurulum:
+1. Kütüphane: panel klasöründe `composer install` (PC'de `D:\php\php.exe composer.phar install`). Oluşan `vendor/` klasörü sunucuya da yüklenir.
+   PHP'de `extension=curl`, `extension=openssl`, `extension=zip` açık olmalı.
+2. API anahtarı: https://console.anthropic.com → API Keys → yeni anahtar. Yönetici olarak panele girip asistan penceresine yapıştırın
+   (`data/asistan-anahtar.php` dosyasına yazılır, ekranda bir daha gösterilmez). İsterseniz `config.php` içindeki `anthropic_api_key` alanına da yazabilirsiniz.
+   Anahtarı değiştirmek için `data/asistan-anahtar.php` dosyasını silip yeniden girin.
+3. Kullandıkça ücretlendirilir; Console'da aylık harcama sınırı koyabilirsiniz.
+
 ## Şifre unutulursa
 
 Yönetici başka bir kullanıcının şifresini **Kullanıcılar** sayfasından değiştirebilir.
@@ -78,6 +96,7 @@ Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adın
 | --- | --- |
 | `index.php`, `assets/` | Ekran (tek sayfa uygulama), `assets/guide.js` eğitim metni |
 | `api.php` | Tüm veri işlemleri (JSON) |
+| `lib/assistant.php` | Sesli asistan: araçlar, onay kartları, Claude API çağrısı |
 | `lib/calc.php` | Alış/satış/free/PP/kur ve kâr hesabı, uyarılar |
 | `lib/data.php` | Kayıt, sürüm kontrolü (aynı anda düzenleme), iptal/devir/taşıma |
 | `lib/sample.php` | Eğitim bölümünün örnek verileri |
