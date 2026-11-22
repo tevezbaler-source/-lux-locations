@@ -1,18 +1,21 @@
 import { BOSPHORUS_DINNER, DESTINATIONS, RESERVATIONS, SERVICES, whatsappLink } from "@lux/shared";
+import { preload } from "react-dom";
 import { HeroSlider } from "@/components/hero-slider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getDict, localePath, type Locale } from "@/i18n";
 import { pageMetadata } from "./meta";
+import { HOME_SEO } from "./seo";
 
 export function homeMetadata(lang: Locale) {
-  const t = getDict(lang);
-  return pageMetadata(lang, "/", t.meta.title, t.meta.description);
+  return pageMetadata(lang, "/", HOME_SEO[lang].title, HOME_SEO[lang].description);
 }
 
 export function HomeView({ lang }: { lang: Locale }) {
   const t = getDict(lang);
   const to = (p: string) => localePath(lang, p);
+  // İlk slayt sayfanın en büyük görseli; tarayıcı CSS'i beklemeden indirmeye başlasın.
+  preload("/assets/slider/1.jpg", { as: "image", fetchPriority: "high" });
 
   return (
     <>
@@ -30,7 +33,7 @@ export function HomeView({ lang }: { lang: Locale }) {
 
       <section className="section">
         <a className="featured" href={to(`/${BOSPHORUS_DINNER.slug}`)}>
-          <img src="/assets/bogaz/bogaz-01.jpg" alt={t.bosphorus.title} />
+          <img src="/assets/bogaz/bogaz-01.jpg" alt={t.bosphorus.title} loading="lazy" />
           <div>
             <small>
               {t.home.featured} · {t.bosphorus.kicker}
@@ -64,7 +67,7 @@ export function HomeView({ lang }: { lang: Locale }) {
             const s = t.services[service.id];
             return (
               <article className="service" key={service.id} id={service.id}>
-                <img src={`/assets/${service.image}`} alt={s.title} loading={i > 2 ? "lazy" : undefined} />
+                <img src={`/assets/${service.image}`} alt={s.title} loading="lazy" />
                 <div>
                   <small>{s.kicker}</small>
                   <h3>{s.title}</h3>

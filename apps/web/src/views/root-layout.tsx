@@ -1,5 +1,6 @@
 import { DM_Sans, Playfair_Display } from "next/font/google";
 import { localeDir, type Locale } from "@/i18n";
+import { HOME_SEO, JsonLd, organizationJsonLd } from "./seo";
 
 const sans = DM_Sans({
   variable: "--font-sans",
@@ -16,7 +17,10 @@ const serif = Playfair_Display({
 export function RootHtml({ lang, children }: { lang: Locale; children: React.ReactNode }) {
   return (
     <html lang={lang} dir={localeDir(lang)} className={`${sans.variable} ${serif.variable}`}>
-      <body>{children}</body>
+      <body>
+        <JsonLd data={organizationJsonLd(lang, HOME_SEO[lang].description)} />
+        {children}
+      </body>
     </html>
   );
 }

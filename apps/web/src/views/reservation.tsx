@@ -4,12 +4,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getDict, localePath, type Locale } from "@/i18n";
 import { pageMetadata } from "./meta";
+import { shortText, SITE_NAME } from "./seo";
 
 const find = (id: Reservation["id"]) => RESERVATIONS.find((r) => r.id === id)!;
 
 export function reservationMetadata(lang: Locale, id: Reservation["id"]) {
   const t = getDict(lang).reservations[id];
-  return pageMetadata(lang, `/${find(id).slug}`, `${t.title} | Lux Locations`, t.text);
+  return pageMetadata(lang, `/${find(id).slug}`, `${t.title} | ${SITE_NAME}`, shortText(t.text));
 }
 
 export function ReservationView({ lang, id }: { lang: Locale; id: Reservation["id"] }) {

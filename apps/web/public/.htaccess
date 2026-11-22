@@ -8,6 +8,9 @@ ErrorDocument 404 /404.html
   RewriteCond %{HTTP_HOST} ^www\.luxlocationstours\.com$ [NC]
   RewriteRule ^(.*)$ https://luxlocationstours.com/$1 [R=301,L]
 
+  # Site haritası: sunucuda üretilir (panelden eklenen oteller dahil)
+  RewriteRule ^sitemap\.xml$ lx-content/sitemap.php [L]
+
   # Sayfalar, admin panelinden (/admin/site/) yapılan metin ve görsel değişiklikleriyle sunulur.
   # Dosyalar diskte değişmez; render.php onları okuyup değişiklikleri uygular.
   RewriteCond %{ENV:REDIRECT_STATUS} ^$
@@ -32,8 +35,17 @@ ErrorDocument 404 /404.html
   ExpiresActive On
   ExpiresByType image/jpeg "access plus 30 days"
   ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType video/mp4 "access plus 30 days"
+  ExpiresByType font/woff2 "access plus 1 year"
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
+</IfModule>
+
+# Metin dosyalarını sıkıştırarak gönder (sayfalar daha hızlı açılır)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/xml application/javascript application/json image/svg+xml
 </IfModule>
 
 # HTML sayfaları her seferinde yeniden doğrulansın (eski sayfa önbellekte kalmasın)
