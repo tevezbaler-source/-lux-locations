@@ -1,81 +1,101 @@
-import {
-  colors,
-  reservationMessage,
-  RESERVATIONS,
-  validateReservation,
-  whatsappLink,
-  type Reservation,
-  type ReservationContact,
-} from '@lux/shared';
+import { colors, RESERVATIONS, type Reservation, type ReservationContact } from '@lux/shared';
+import { fill } from '@lux/shared/i18n';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Button, Eyebrow, LangButton, Screen, ui } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
+import { useApp, waLink } from '@/lib/app-state';
 
 const emptyContact: ReservationContact = { full_name: '', phone: '', email: '', notes: '' };
 
-export function ReservationScreen({ id }: { id: Reservation['id'] }) {
+// Alanlar seçili dilde; talep, aynı dilde hazırlanmış bir WhatsApp mesajı olarak gönderilir (sitedeki formla aynı).
+export function ReservationScreen({ id, onChange }: { id: Reservation['id']; onChange: (id: Reservation['id']) => void }) {
+  const { t, lang, whatsapp } = useApp();
   const reservation = RESERVATIONS.find((r) => r.id === id)!;
-  const insets = useSafeAreaInsets();
+  const text = t.reservations[id];
+  const fields = reservation.fields.map((f) => ({ ...f, ...text.fields[f.key] }));
+  const f = t.form;
   const [details, setDetails] = useState<Record<string, string>>({});
   const [contact, setContact] = useState(emptyContact);
   const [errors, setErrors] = useState<string[]>([]);
 
   function submit() {
-    const found = validateReservation(reservation, contact, details);
+    const found: string[] = [];
+    if (!contact.full_name.trim()) found.push(f.errName);
+    if (!contact.phone.trim() && !contact.email.trim()) found.push(f.errContact);
+    if (contact.email.trim() && !/^\S+@\S+\.\S+$/.test(contact.email.trim())) found.push(f.errEmail);
+    for (const field of fields) if (!field.optional && !details[field.key]?.trim()) found.push(fill(f.errRequired, { field: field.label }));
     setErrors(found);
-    if (found.length === 0) Linking.openURL(whatsappLink(reservationMessage(reservation, contact, details)));
+    if (found.length) return;
+    const lines = [fill(f.messageIntro, { title: text.title }), ''];
+    for (const field of fields) {
+      const value = details[field.key]?.trim();
+      if (value) lines.push(`${field.label}: ${value}`);
+    }
+    lines.push('', `${f.fullName}: ${contact.full_name.trim()}`);
+    if (contact.phone.trim()) lines.push(`${f.phone}: ${contact.phone.trim()}`);
+    if (contact.email.trim()) lines.push(`${f.email}: ${contact.email.trim()}`);
+    if (contact.notes.trim()) lines.push(`${f.noteLabel}: ${contact.notes.trim()}`);
+    Linking.openURL(waLink(whatsapp, lines.join('\n')));
   }
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        style={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + Spacing.four, paddingBottom: insets.bottom + BottomTabInset + Spacing.four },
-        ]}>
-        <ThemedText style={styles.eyebrow}>{reservation.kicker.toLocaleUpperCase('tr')}</ThemedText>
-        <ThemedText style={styles.title}>{reservation.title}</ThemedText>
-        <ThemedText themeColor="textSecondary" style={styles.text}>
-          {reservation.text}
-        </ThemedText>
+      <Screen>
+        <View style={ui.row}>
+          <Eyebrow>{t.home.reservationsEyebrow.toLocaleUpperCase(lang)}</Eyebrow>
+          <LangButton />
+        </View>
+        <View style={styles.segment}>
+          {RESERVATIONS.map((r) => (
+            <Pressable
+              key={r.id}
+              onPress={() => {
+                onChange(r.id);
+                setDetails({});
+                setErrors([]);
+              }}
+              style={[styles.segButton, r.id === id && styles.segOn]}>
+              <ThemedText style={[styles.segText, r.id === id && styles.segTextOn]} numberOfLines={2}>
+                {t.reservations[r.id].title}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
 
-        {reservation.fields.map((field) => (
+        <ThemedText style={ui.kicker}>{text.kicker.toLocaleUpperCase(lang)}</ThemedText>
+        <ThemedText style={ui.title}>{text.title}</ThemedText>
+        <ThemedText style={ui.text}>{text.text}</ThemedText>
+
+        {fields.map((field) => (
           <Field
-            key={field.key}
-            label={field.optional ? `${field.label} (isteğe bağlı)` : field.label}
+            key={`${id}-${field.key}`}
+            label={field.optional ? `${field.label} (${f.optional})` : field.label}
             value={details[field.key] ?? ''}
-            placeholder={field.type === 'date' ? 'GG.AA.YYYY' : field.placeholder}
-            keyboardType={field.type === 'text' ? 'default' : 'number-pad'}
+            placeholder={field.type === 'date' ? (lang === 'tr' ? 'GG.AA.YYYY' : 'DD.MM.YYYY') : field.placeholder}
+            keyboardType={field.type === 'number' ? 'number-pad' : field.type === 'date' ? 'numbers-and-punctuation' : 'default'}
             onChangeText={(v) => setDetails((d) => ({ ...d, [field.key]: v }))}
           />
         ))}
 
-        <ThemedText style={[styles.eyebrow, styles.section]}>İLETİŞİM BİLGİLERİNİZ</ThemedText>
-        <Field label="Ad soyad" value={contact.full_name} onChangeText={(v) => setContact((c) => ({ ...c, full_name: v }))} />
+        <Eyebrow style={styles.section}>{f.contactEyebrow.toLocaleUpperCase(lang)}</Eyebrow>
+        <Field label={f.fullName} value={contact.full_name} onChangeText={(v) => setContact((c) => ({ ...c, full_name: v }))} />
         <Field
-          label="Telefon"
+          label={f.phone}
           value={contact.phone}
           placeholder="+90…"
           keyboardType="phone-pad"
           onChangeText={(v) => setContact((c) => ({ ...c, phone: v }))}
         />
         <Field
-          label="E-posta"
+          label={f.email}
           value={contact.email}
           keyboardType="email-address"
           onChangeText={(v) => setContact((c) => ({ ...c, email: v }))}
         />
-        <Field
-          label="Notunuz (isteğe bağlı)"
-          value={contact.notes}
-          multiline
-          onChangeText={(v) => setContact((c) => ({ ...c, notes: v }))}
-        />
+        <Field label={f.notes} value={contact.notes} multiline onChangeText={(v) => setContact((c) => ({ ...c, notes: v }))} />
 
         {errors.length > 0 && (
           <View style={styles.errors}>
@@ -87,10 +107,8 @@ export function ReservationScreen({ id }: { id: Reservation['id'] }) {
           </View>
         )}
 
-        <Pressable onPress={submit} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-          <ThemedText style={styles.buttonText}>WhatsApp ile gönder</ThemedText>
-        </Pressable>
-      </ScrollView>
+        <Button label={f.submit} onPress={submit} />
+      </Screen>
     </KeyboardAvoidingView>
   );
 }
@@ -117,18 +135,12 @@ function Field({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scroll: { flex: 1, backgroundColor: colors.paper },
-  content: {
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.three,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-  },
-  eyebrow: { fontSize: 11, letterSpacing: 2, color: colors.gold },
   section: { marginTop: Spacing.three },
-  title: { fontFamily: 'serif', fontSize: 30, lineHeight: 38, color: colors.ink },
-  text: { fontSize: 14, lineHeight: 21, marginBottom: Spacing.two },
+  segment: { flexDirection: 'row', gap: Spacing.one },
+  segButton: { flex: 1, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, padding: Spacing.two, justifyContent: 'center' },
+  segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  segText: { fontSize: 12, lineHeight: 16, color: colors.ink, textAlign: 'center' },
+  segTextOn: { color: colors.white },
   field: { gap: Spacing.one },
   label: { fontSize: 13, color: colors.ink },
   input: {
@@ -143,7 +155,4 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 90, textAlignVertical: 'top' },
   errors: { backgroundColor: '#fbeeea', padding: Spacing.three, gap: Spacing.one },
   errorText: { fontSize: 13, color: '#8a3b2a' },
-  button: { backgroundColor: colors.ink, paddingVertical: Spacing.three, alignItems: 'center', marginTop: Spacing.two },
-  pressed: { opacity: 0.8 },
-  buttonText: { color: colors.white, fontSize: 14, letterSpacing: 1 },
 });
