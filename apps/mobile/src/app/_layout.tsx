@@ -1,9 +1,9 @@
-import { DefaultTheme, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
-import AppTabs from '@/components/app-tabs';
 import { Colors } from '@/constants/theme';
+import { AppProvider } from '@/lib/app-state';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -12,14 +12,21 @@ const theme = {
   colors: { ...DefaultTheme.colors, background: Colors.light.background, text: Colors.light.text },
 };
 
-export default function TabLayout() {
+export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
 
   return (
     <ThemeProvider value={theme}>
-      <AppTabs />
+      <AppProvider>
+        <Stack screenOptions={{ headerTintColor: Colors.light.text, headerBackButtonDisplayMode: 'minimal' }}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="otel/[slug]" options={{ title: '' }} />
+          <Stack.Screen name="sayfa" options={{ title: '' }} />
+          <Stack.Screen name="dil" options={{ presentation: 'modal', title: '' }} />
+        </Stack>
+      </AppProvider>
     </ThemeProvider>
   );
 }
