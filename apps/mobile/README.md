@@ -32,7 +32,9 @@ Canlı veri adresi: `https://luxlocationstours.com/lx-content/app-api.php?lang=t
 - `apps/web/public/lx-content/app-api.php` → sunucuda `httpdocs/lx-content/app-api.php`
 - `apps/web/public/gizlilik/index.html` → sunucuda `httpdocs/gizlilik/index.html` (mağazaların istediği gizlilik politikası: `https://luxlocationstours.com/gizlilik/`)
 
-Başka dosyaya dokunulmaz.
+Başka dosyaya dokunulmaz. Yükleme betiği: `scripts/uygulama/Siteye-Yukle.bat` (iki dosyayı yanına aynı klasör yapısıyla koyup çalıştırın, FTP şifresini sorar).
+
+Mağaza formlarına girilecek metinler: `magaza/magaza-bilgileri.md`.
 
 ## Deneme
 
