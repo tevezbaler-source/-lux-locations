@@ -441,6 +441,19 @@ function asst_save_state(array $s): void {
     $_SESSION[asst_key()] = $s;
 }
 
+/** Geçmişteki düşünme bloklarını çıkarır; içi boşalan asistan mesajı kalmaz. */
+function asst_strip_thinking(array $messages): array {
+    $out = [];
+    foreach ($messages as $m) {
+        if (($m['role'] ?? '') === 'assistant' && is_array($m['content'])) {
+            $m['content'] = array_values(array_filter($m['content'], fn($b) => !in_array($b['type'] ?? '', ['thinking', 'redacted_thinking'], true)));
+            if (!$m['content']) continue;
+        }
+        $out[] = $m;
+    }
+    return $out;
+}
+
 /** SDK içerik bloğunu tekrar gönderilebilecek diziye çevirir (thinking blokları olduğu gibi korunur). */
 function asst_block_array($block): array {
     return json_decode(json_encode($block), true);
@@ -487,7 +500,15 @@ function asst_loop(array $s, array $done = []): array {
         try {
             // Sistem metni konuşma boyunca sabit kalmalı: değişirse (ör. yeni otel listesi) önceki düşünme blokları geçersiz olur.
             $s['system'] ??= asst_system();
-            $r = asst_call($s['messages'], $s['system']);
+            try {
+                $r = asst_call($s['messages'], $s['system']);
+            } catch (Throwable $e) {
+                // Eski/başka konuşmaya bağlı düşünme bloğu: blokları çıkarıp bir kez daha dene (API bunu kabul eder).
+                if (!str_contains($e->getMessage(), '`thinking` block')) throw $e;
+                $s['messages'] = asst_strip_thinking($s['messages']);
+                $s['system'] = asst_system();
+                $r = asst_call($s['messages'], $s['system']);
+            }
         } catch (ApiError $e) {
             throw $e;
         } catch (Throwable $e) {
