@@ -5,6 +5,7 @@ import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAdmin } from '@/lib/admin';
 import { useApp } from '@/lib/app-state';
 
 // Logonun zemin rengi: seçili sekme bu renkle, üstünde ince bakır çizgi.
@@ -17,6 +18,7 @@ const ICONS: Record<string, Icon> = {
   oteller: { sf: 'building.2', sfActive: 'building.2.fill', md: 'apartment' },
   rezervasyon: { sf: 'calendar', sfActive: 'calendar', md: 'calendar_month' },
   iletisim: { sf: 'bubble.left.and.bubble.right', sfActive: 'bubble.left.and.bubble.right.fill', md: 'forum' },
+  panel: { sf: 'person.badge.key', sfActive: 'person.badge.key.fill', md: 'admin_panel_settings' },
 };
 
 export default function AppTabs() {
@@ -29,15 +31,19 @@ export default function AppTabs() {
       <Tabs.Screen name="oteller" options={{ title: t.nav.hotels }} />
       <Tabs.Screen name="rezervasyon" options={{ title: app.reserve }} />
       <Tabs.Screen name="iletisim" options={{ title: t.nav.contact }} />
+      <Tabs.Screen name="panel" options={{ title: 'Panel' }} />
     </Tabs>
   );
 }
 
 function LuxTabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const admin = useAdmin();
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {state.routes.map((route, index) => {
+        // Panel sekmesi yalnızca ekip modunda (panel şifresiyle giriş yapılmış telefonda) görünür.
+        if (route.name === 'panel' && !admin) return null;
         const focused = state.index === index;
         const icon = ICONS[route.name] ?? ICONS.index;
         const label = descriptors[route.key].options.title ?? route.name;

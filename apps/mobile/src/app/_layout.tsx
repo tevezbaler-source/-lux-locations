@@ -26,6 +26,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="otel/[slug]" options={{ title: '' }} />
           <Stack.Screen name="sayfa" options={{ title: '' }} />
+          <Stack.Screen name="panel" options={{ title: 'Panel' }} />
           <Stack.Screen name="dil" options={{ presentation: 'modal', title: '' }} />
         </Stack>
       </AppProvider>

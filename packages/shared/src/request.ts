@@ -36,3 +36,28 @@ export function validateRequest(input: RequestInput): string[] {
   }
   return errors;
 }
+
+// Formdan giden talebin bir kopyası sunucuya kaydedilir (lx-content/talep.php) ve sitedeki panelin
+// "Talepler" bölümünde listelenir. Asıl gönderim yine WhatsApp'tan yapılır; kayıt başarısız olsa da form çalışır.
+export interface RequestCopy {
+  source: 'web' | 'app';
+  lang: string;
+  title: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  message: string;
+}
+
+export function saveRequestCopy(site: string, copy: RequestCopy): void {
+  try {
+    fetch(`${site}/lx-content/talep.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(copy),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // ağ yoksa sessizce geç
+  }
+}

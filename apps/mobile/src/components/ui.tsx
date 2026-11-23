@@ -5,7 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View, type StyleProp
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useApp } from '@/lib/app-state';
 import { FLAGS } from '@/lib/app-text';
 
@@ -14,21 +14,26 @@ export function Screen({ children, tab = true, top = true }: { children: ReactNo
   const insets = useSafeAreaInsets();
   const { rtl, refresh, status } = useApp();
   return (
-    <ScrollView
-      style={styles.scroll}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.gold} />}
-      contentContainerStyle={[
-        styles.content,
-        rtl && styles.rtl,
-        {
-          paddingTop: (top ? insets.top : 0) + Spacing.four,
-          paddingBottom: insets.bottom + (tab ? BottomTabInset : 0) + Spacing.four,
-        },
-      ]}>
-      {status === 'offline' || status === 'error' ? <StatusBanner /> : null}
-      {children}
-    </ScrollView>
+    <View style={styles.scroll}>
+      <ScrollView
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.gold} />}
+        contentContainerStyle={[
+          styles.content,
+          rtl && styles.rtl,
+          {
+            paddingTop: (top ? insets.top : 0) + Spacing.four,
+            // Sekmeli ekranlarda alt boşluğu alt menü kendisi bırakır.
+            paddingBottom: (tab ? 0 : insets.bottom) + Spacing.four,
+          },
+        ]}>
+        {status === 'offline' || status === 'error' ? <StatusBanner /> : null}
+        {children}
+      </ScrollView>
+      {/* Kaydırılan içerik saat ve pil yazılarının altından geçmesin: üstte sabit zemin şeridi */}
+      {top ? <View pointerEvents="none" style={[styles.statusStrip, { height: insets.top }]} /> : null}
+    </View>
   );
 }
 
@@ -82,6 +87,7 @@ export const ui = StyleSheet.create({
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.paper },
+  statusStrip: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.paper },
   content: { paddingHorizontal: Spacing.four, gap: Spacing.three, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   rtl: { direction: 'rtl' },
   banner: { backgroundColor: colors.forest, padding: Spacing.two },

@@ -1,6 +1,6 @@
 "use client";
 
-import { whatsappLink, type ReservationContact, type ServiceField } from "@lux/shared";
+import { saveRequestCopy, whatsappLink, type ReservationContact, type ServiceField } from "@lux/shared";
 import { useState } from "react";
 import { fill, type FormText } from "@/i18n/types";
 
@@ -40,7 +40,18 @@ export function ReservationForm({ title, fields, t }: { title: string; fields: S
     e.preventDefault();
     const found = validate();
     setErrors(found);
-    if (found.length === 0) window.open(whatsappLink(message()), "_blank");
+    if (found.length > 0) return;
+    const text = message();
+    saveRequestCopy("", {
+      source: "web",
+      lang: document.documentElement.lang || "tr",
+      title,
+      full_name: contact.full_name.trim(),
+      phone: contact.phone.trim(),
+      email: contact.email.trim(),
+      message: text,
+    });
+    window.open(whatsappLink(text), "_blank");
   }
 
   const contactField = (key: keyof ReservationContact, label: string, type = "text") => (

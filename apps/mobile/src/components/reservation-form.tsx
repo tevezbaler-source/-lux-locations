@@ -1,4 +1,4 @@
-import { colors, RESERVATIONS, type Reservation, type ReservationContact } from '@lux/shared';
+import { colors, RESERVATIONS, saveRequestCopy, type Reservation, type ReservationContact } from '@lux/shared';
 import { fill } from '@lux/shared/i18n';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Eyebrow, LangButton, Screen, ui } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useApp, waLink } from '@/lib/app-state';
+import { SITE } from '@/lib/site';
 
 const emptyContact: ReservationContact = { full_name: '', phone: '', email: '', notes: '' };
 
@@ -38,7 +39,17 @@ export function ReservationScreen({ id, onChange }: { id: Reservation['id']; onC
     if (contact.phone.trim()) lines.push(`${f.phone}: ${contact.phone.trim()}`);
     if (contact.email.trim()) lines.push(`${f.email}: ${contact.email.trim()}`);
     if (contact.notes.trim()) lines.push(`${f.noteLabel}: ${contact.notes.trim()}`);
-    Linking.openURL(waLink(whatsapp, lines.join('\n')));
+    const message = lines.join('\n');
+    saveRequestCopy(SITE, {
+      source: 'app',
+      lang,
+      title: text.title,
+      full_name: contact.full_name.trim(),
+      phone: contact.phone.trim(),
+      email: contact.email.trim(),
+      message,
+    });
+    Linking.openURL(waLink(whatsapp, message));
   }
 
   return (

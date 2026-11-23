@@ -1,4 +1,5 @@
 import { colors, CONTACT } from '@lux/shared';
+import { router } from 'expo-router';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -42,6 +43,10 @@ export default function ContactScreen() {
         {app.privacy}
       </ThemedText>
       <ThemedText style={styles.small}>{`© Lux Locations · ${t.footer.rights}`}</ThemedText>
+      {/* Ekip girişi: müşteriye yönelik değil, bu yüzden küçük ve sade */}
+      <ThemedText style={styles.team} onPress={() => router.push('/panel')}>
+        Ekip girişi
+      </ThemedText>
     </Screen>
   );
 }
@@ -52,4 +57,5 @@ const styles = StyleSheet.create({
   social: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four },
   link: { fontSize: 15, color: colors.gold },
   small: { fontSize: 11, color: colors.muted, marginTop: Spacing.four },
+  team: { fontSize: 11, color: colors.muted, opacity: 0.7, paddingVertical: Spacing.two },
 });
