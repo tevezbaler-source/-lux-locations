@@ -485,7 +485,7 @@ function asst_loop(array $s, array $done = []): array {
             $why = asst_error_reason($e);
             error_log('asistan API hatası: ' . $why);
             asst_save_state($s);
-            $admin = (current_user()['role'] ?? '') === 'admin';
+            $admin = (current_user()['role'] ?? '') === 'yonetici';
             throw new ApiError('Asistana şu an ulaşılamıyor. Biraz sonra tekrar deneyin.' . ($admin ? ' [Ayrıntı: ' . $why . ']' : ''), 502);
         }
         $s['messages'][] = ['role' => 'assistant', 'content' => $r['content']];
