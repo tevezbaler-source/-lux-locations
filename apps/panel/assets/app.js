@@ -756,7 +756,7 @@
       ${tcmbBox(t, can('rate') && !S.egitim)}
       ${can('rate') ? `<form class="panel row" id="fxf"><label class="f">Tarih<input type="date" name="rate_date" value="${today()}"></label><label class="f">1 EUR = TL<input name="eur_try" inputmode="decimal" required></label><label class="f">1 USD = TL<input name="usd_try" inputmode="decimal" required></label><label class="f" style="flex:1">Not<input name="note" placeholder="ör. Banka satış kuru"></label><button class="primary">Kaydet</button></form>` : ''}
       <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th class="num">EUR/TL</th><th class="num">USD/TL</th><th class="num">EUR/USD</th><th>Giren</th><th>Not</th></tr></thead><tbody>
-      ${d.rates.map((r) => `<tr><td>${trDate(r.rate_date)}</td><td class="num">${money(r.eur_try)}</td><td class="num">${money(r.usd_try)}</td><td class="num">${(r.eur_try / r.usd_try).toFixed(4)}</td><td>${esc(r.user_name || '')}</td><td>${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kur girilmedi.</td></tr>'}
+      ${d.rates.map((r) => `<tr><td>${trDate(r.rate_date)}</td><td class="num">${money(r.eur_try)}</td><td class="num">${money(r.usd_try)}</td><td class="num">${(r.eur_try / r.usd_try).toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</td><td>${esc(r.user_name || '')}</td><td>${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kur girilmedi.</td></tr>'}
       </tbody></table></div>`;
     const f = qs('#fxf', main);
     const tb = qs('#tcmbFill', main);
