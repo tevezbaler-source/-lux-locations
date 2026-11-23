@@ -434,6 +434,90 @@
   }
 
   /* ================= GRUP FORMU ================= */
+  /* ---------- Misafir listesi ve belgeler (voucher, otel talep fişi) ---------- */
+  function guestSection(el, b) {
+    const RT = S.consts.room_types;
+    const PAX = [['ADL', 'Yetişkin'], ['CHD', 'Çocuk'], ['INF', 'Bebek']];
+    const PER = { SNGL: 1, DBL: 2, TWIN: 2, TRPL: 3, QUAD: 4 };
+    const ed = can('booking');
+    const x = b.extra || {};
+    const row = (g = {}) => `<tr>
+      <td><input data-k="room_no" inputmode="numeric" value="${g.room_no ?? ''}" style="width:60px"></td>
+      <td><select data-k="room_type"><option value=""></option>${RT.map((t) => `<option ${t === g.room_type ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td><input data-k="name" value="${esc(g.name || '')}" placeholder="Ad Soyad" style="min-width:200px"></td>
+      <td><select data-k="pax">${PAX.map(([v, l]) => `<option value="${v}" ${v === (g.pax || 'ADL') ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+      <td><input data-k="note" value="${esc(g.note || '')}" placeholder="ör. pasaport no, özel istek"></td>
+      ${ed ? '<td><button type="button" class="link rm" title="Sil" style="color:var(--err)">✕</button></td>' : ''}</tr>`;
+    const docUrl = (t) => `belge.php?tip=${t}&id=${b.id}`;
+    el.innerHTML = `<h2>Misafirler ve belgeler</h2>
+      <div class="panel">
+        <div class="row" style="margin-bottom:8px"><span class="muted small">İsim listesi, varış-dönüş ve notlar konfirme sonrası da düzenlenebilir. Belgeler yeni sekmede açılır, oradan yazdırıp PDF kaydedebilirsiniz.</span><span class="spacer"></span>
+          <a class="btn" href="${docUrl('talep')}" target="_blank" rel="noopener">Otel talep fişi</a>
+          <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a></div>
+        <div class="grid-form">
+          <label class="f">Grup sorumlusu / lider<input name="contact_name" value="${esc(x.contact_name || '')}" placeholder="ör. Mr. Ardit Krasniqi"></label>
+          <label class="f">Varış (uçuş, saat)<input name="arrival_info" value="${esc(x.arrival_info || '')}" placeholder="ör. 12.12 TK1018 14:30 IST"></label>
+          <label class="f">Dönüş (uçuş, saat)<input name="departure_info" value="${esc(x.departure_info || '')}" placeholder="ör. 15.12 TK1019 18:10 IST"></label>
+        </div>
+        <div class="grid-form" style="margin-top:8px">
+          <label class="f">Otele not (talep fişinde görünür)<textarea name="hotel_note" placeholder="ör. Odalar yan yana olsun, geç giriş 23:00">${esc(x.hotel_note || '')}</textarea></label>
+          <label class="f">Voucher notu (acente ve misafir görür)<textarea name="voucher_note" placeholder="ör. Transfer dahildir">${esc(x.voucher_note || '')}</textarea></label>
+        </div>
+        <div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Oda no</th><th>Oda tipi</th><th>Ad Soyad</th><th>Tip</th><th>Not</th>${ed ? '<th></th>' : ''}</tr></thead><tbody id="gB">${(b.guests || []).map(row).join('')}</tbody></table></div>
+        <div class="small muted" id="gCount"></div>
+        ${ed ? `<div class="row" style="margin-top:8px"><button type="button" id="gAdd">+ Misafir</button><button type="button" id="gPaste">Listeyi yapıştır</button><span class="spacer"></span><button type="button" class="primary" id="gSave">Misafir listesini kaydet</button></div>
+        <div id="gPasteBox" style="display:none;margin-top:8px"><label class="f">Her satıra bir isim yazın ya da Excel / WhatsApp'tan yapıştırın. Odalara grubun oda tiplerine göre (DBL 2, TRPL 3 kişi...) sırayla yerleştirilir. Boş satır yeni odaya geçirir.<textarea id="gPasteTxt" rows="8"></textarea></label>
+          <div class="row" style="margin-top:6px"><label class="small"><input type="checkbox" id="gReplace" checked> Mevcut listenin yerine koy</label><span class="spacer"></span><button type="button" class="primary" id="gPasteOk">Listeye ekle</button></div></div>` : ''}
+      </div>`;
+    const tb = qs('#gB', el);
+    const count = () => { const n = qsa('tr', tb).filter((tr) => qs('[data-k=name]', tr).value.trim()).length; qs('#gCount', el).textContent = n ? `${n} kişi` : 'Henüz isim yok.'; };
+    count();
+    if (!ed) { qsa('input, select, textarea', el).forEach((i) => { i.disabled = true; }); return; }
+    tb.addEventListener('click', (e) => { if (e.target.closest('.rm')) { e.target.closest('tr').remove(); count(); } });
+    tb.addEventListener('input', count);
+    qs('#gAdd', el).onclick = () => {
+      const last = qsa('tr', tb).pop();
+      const no = last ? (+qs('[data-k=room_no]', last).value || 1) : 1;
+      const type = last ? qs('[data-k=room_type]', last).value : '';
+      tb.insertAdjacentHTML('beforeend', row({ room_no: no, room_type: type }));
+      qs('tr:last-child [data-k=name]', tb).focus(); count();
+    };
+    qs('#gPaste', el).onclick = () => { const bx = qs('#gPasteBox', el); bx.style.display = bx.style.display === 'none' ? '' : 'none'; qs('#gPasteTxt', el).focus(); };
+    qs('#gPasteOk', el).onclick = () => {
+      // Odaların sırası: grubun oda satırları (ör. 10 DBL, 2 TRPL)
+      const slots = [];
+      (b.rooms || []).forEach((r) => { for (let i = 0; i < (+r.qty || 0); i++) slots.push(r.room_type); });
+      const lines = qs('#gPasteTxt', el).value.split(/\r?\n/).map((l) => l.replace(/^[\s\d.)\-–*•]+/, '').replace(/\t+/g, ' ').trim());
+      const replace = qs('#gReplace', el).checked;
+      let room = replace ? 1 : Math.max(0, ...qsa('[data-k=room_no]', tb).map((i) => +i.value || 0)) + 1;
+      let inRoom = 0; let added = [];
+      for (const name of lines) {
+        if (!name) { if (inRoom) { room++; inRoom = 0; } continue; }
+        const type = slots[room - 1] || slots[slots.length - 1] || '';
+        if (inRoom >= (PER[type] || 2)) { room++; inRoom = 0; }
+        const pax = /\b(chd|çocuk|child)\b/i.test(name) ? 'CHD' : (/\b(inf|bebek|infant)\b/i.test(name) ? 'INF' : 'ADL');
+        const clean = name.replace(/\s*[(\[]?\s*\b(chd|çocuk|child|inf|bebek|infant)\b\s*[)\]]?\s*/ig, ' ').trim() || name;
+        added.push({ room_no: room, room_type: slots[room - 1] || type, name: clean, pax });
+        inRoom++;
+      }
+      if (!added.length) return toast('Yapıştırılacak isim yok.', 'err');
+      if (replace) tb.innerHTML = '';
+      tb.insertAdjacentHTML('beforeend', added.map(row).join(''));
+      qs('#gPasteTxt', el).value = ''; qs('#gPasteBox', el).style.display = 'none'; count();
+      toast(`${added.length} isim eklendi. Kontrol edip kaydedin.`, 'ok');
+    };
+    qs('#gSave', el).onclick = async () => {
+      const guests = qsa('tr', tb).map((tr) => { const o = {}; qsa('[data-k]', tr).forEach((i) => { o[i.dataset.k] = i.value; }); return o; }).filter((g) => g.name.trim());
+      const extra = {}; ['contact_name', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'].forEach((k) => { extra[k] = qs(`[name=${k}]`, el).value; });
+      try {
+        const r = await api('guests_save', {}, { booking_id: b.id, guests, extra });
+        b.guests = r.guests; b.extra = r.extra;
+        toast('Misafir listesi kaydedildi.', 'ok');
+        guestSection(el, b);
+      } catch (e) { toast(e.message, 'err'); }
+    };
+  }
+
   async function viewBooking(main, idPart, p) {
     const isNew = idPart === 'yeni';
     const [hotelsR, agR] = await Promise.all([api('hotels'), api('agency_names')]);
@@ -521,7 +605,8 @@
           ${!isNew ? `<h2>Tarihçe: kim, ne zaman, neyi değiştirdi</h2><div class="panel hist">${(b.history || []).map((x) => `<div class="h"><b>${esc(x.user_name || '')}</b> · <span class="muted">${trDT(x.at)}${x.ip ? ' · ' + esc(x.ip) : ''}</span><br>${esc(x.summary)}${(x.changes || []).map((c) => `<div class="ch">${esc(c.field)}: <b>${esc(c.from)}</b> → <b>${esc(c.to)}</b></div>`).join('')}</div>`).join('') || '<span class="muted">Kayıt yok.</span>'}</div>` : ''}
         </form>
         <aside class="calc panel" id="calcBox"><div class="muted">Hesaplanıyor…</div></aside>
-      </div>`;
+      </div>
+      ${!isNew && !+b.deleted ? '<div id="guestSec"></div>' : ''}`;
 
     const form = qs('#bf', main);
     const rowsEl = { rooms: qs('#roomsB', main), free: qs('#freeB', main), srv: qs('#srvB', main) };
@@ -538,6 +623,7 @@
       if (ro) qsa('input, select, textarea', form).forEach((el) => { el.disabled = true; });
     };
     applyLock();
+    if (!isNew && !+b.deleted) guestSection(qs('#guestSec', main), b);
 
     const collect = () => {
       const fd = {};

@@ -226,6 +226,57 @@ function fx_save(array $in): array {
     return q_one('SELECT * FROM fx_rates WHERE id = ?', [$id]);
 }
 
+/* ---------------- Misafir listesi ve belge bilgileri ---------------- */
+
+const EXTRA_FIELDS = ['contact_name', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'];
+
+function guests_get(int $bookingId): array {
+    return q_all('SELECT room_no, room_type, name, pax, note FROM booking_guests WHERE booking_id = ? ORDER BY room_no, id', [$bookingId]);
+}
+
+function booking_extra_get(int $bookingId): array {
+    $e = q_one('SELECT ' . implode(', ', EXTRA_FIELDS) . ' FROM booking_extra WHERE booking_id = ?', [$bookingId]);
+    return $e ?: array_fill_keys(EXTRA_FIELDS, null);
+}
+
+/** Misafir listesi ve belge notlarını kaydeder. Fiyat kilidinden bağımsızdır; konfirme grupta da düzenlenir. */
+function guests_save(array $in): array {
+    need('booking');
+    $id = clean_int($in['booking_id'] ?? null);
+    $b = $id ? q_one('SELECT id, code, hotel_id, check_in, deleted FROM bookings WHERE id = ?', [$id]) : null;
+    if (!$b || (int)$b['deleted']) throw new ApiError('Grup bulunamadı.', 404);
+    $guests = [];
+    foreach ((array)($in['guests'] ?? []) as $g) {
+        $name = clean_str($g['name'] ?? null, 160);
+        if (!$name) continue;
+        $type = strtoupper((string)($g['room_type'] ?? ''));
+        $guests[] = [
+            'room_no' => max(1, min(999, (int)($g['room_no'] ?? 1))),
+            'room_type' => in_array($type, ROOM_TYPES, true) ? $type : null,
+            'name' => $name,
+            'pax' => in_array($g['pax'] ?? 'ADL', ['ADL', 'CHD', 'INF'], true) ? $g['pax'] : 'ADL',
+            'note' => clean_str($g['note'] ?? null, 255),
+        ];
+    }
+    if (count($guests) > 1000) throw new ApiError('Misafir listesi çok uzun.');
+    $extra = [];
+    foreach (EXTRA_FIELDS as $f) $extra[$f] = clean_str($in['extra'][$f] ?? null, in_array($f, ['hotel_note', 'voucher_note'], true) ? 2000 : 255);
+    $oldG = guests_get($id); $oldE = booking_extra_get($id);
+    $u = current_user();
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        q('DELETE FROM booking_guests WHERE booking_id = ?', [$id]);
+        foreach ($guests as $g) insert_row('booking_guests', ['booking_id' => $id] + $g);
+        q('DELETE FROM booking_extra WHERE booking_id = ?', [$id]);
+        insert_row('booking_extra', ['booking_id' => $id] + $extra + ['updated_by' => $u['id'], 'updated_at' => now()]);
+        audit('grup', $id, 'misafir', 'Misafir listesi / belge bilgisi güncellendi' . ($b['code'] ? " ({$b['code']})" : '') . ': ' . count($guests) . ' kişi',
+            ['guests' => $oldG, 'extra' => $oldE], ['guests' => $guests, 'extra' => $extra]);
+        $pdo->commit();
+    } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+    return ['guests' => guests_get($id), 'extra' => booking_extra_get($id)];
+}
+
 /* ---------------- Gruplar ---------------- */
 
 function booking_get(int $id): array {
@@ -247,6 +298,8 @@ function booking_full(int $id): array {
         $h['changes'] = audit_diff($h['old_json'], $h['new_json']);
         unset($h['old_json'], $h['new_json']);
     }
+    $b['guests'] = guests_get($id);
+    $b['extra'] = booking_extra_get($id);
     if ($b['prev_booking_id']) $b['prev'] = q_one('SELECT id, code, agency_id, (SELECT name FROM agencies WHERE id = bookings.agency_id) AS agency_name FROM bookings WHERE id = ?', [$b['prev_booking_id']]);
     $b['next'] = q_one('SELECT id, code, (SELECT name FROM agencies WHERE id = bookings.agency_id) AS agency_name FROM bookings WHERE prev_booking_id = ? AND deleted = 0', [$id]);
     $b['created_by_name'] = $b['created_by'] ? q_val('SELECT name FROM users WHERE id = ?', [$b['created_by']], db_main()) : null;

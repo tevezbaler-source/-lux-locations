@@ -178,6 +178,8 @@ try {
             allotment_delete((int)$in['id']); out(['ok' => true]);
         case 'agency_save':
             out(agency_save($in));
+        case 'guests_save':
+            out(guests_save($in));
         case 'fx_save':
             out(fx_save($in));
         case 'note_save':

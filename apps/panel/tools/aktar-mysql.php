@@ -16,7 +16,7 @@ $from = lx_open_sqlite($src);
 $to = db_main(); // tabloları da oluşturur
 
 $tables = ['users', 'hotels', 'hotel_rates', 'hotel_allotments', 'agencies', 'bookings', 'booking_rooms',
-    'booking_free', 'booking_services', 'fx_rates', 'notes', 'audit_log'];
+    'booking_free', 'booking_services', 'booking_guests', 'booking_extra', 'fx_rates', 'notes', 'audit_log'];
 
 foreach ($tables as $t) {
     if ((int)$to->query("SELECT COUNT(*) FROM $t")->fetchColumn() > 0) {
@@ -33,7 +33,8 @@ try {
         $exists = $from->query("SELECT name FROM sqlite_master WHERE type='table' AND name=" . $from->quote($t))->fetchColumn();
         if (!$exists) { echo "$t: kaynakta yok, atlandı\n"; continue; }
         $myCols = array_column($to->query("SHOW COLUMNS FROM $t")->fetchAll(), 'Field');
-        $rows = $from->query("SELECT * FROM $t ORDER BY id")->fetchAll();
+        $key = $t === 'booking_extra' ? 'booking_id' : 'id';
+        $rows = $from->query("SELECT * FROM $t ORDER BY $key")->fetchAll();
         $n = 0;
         foreach ($rows as $r) {
             $r = array_intersect_key($r, array_flip($myCols));
@@ -42,7 +43,7 @@ try {
             $to->prepare($sql)->execute(array_values($r));
             $n++;
         }
-        if ($n) $maxIds[$t] = (int)$to->query("SELECT MAX(id) FROM $t")->fetchColumn();
+        if ($n && $key === 'id') $maxIds[$t] = (int)$to->query("SELECT MAX(id) FROM $t")->fetchColumn();
         echo "$t: $n kayıt\n";
     }
     $to->exec('SET FOREIGN_KEY_CHECKS = 1');

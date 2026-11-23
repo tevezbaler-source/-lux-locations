@@ -104,6 +104,9 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     $tables['booking_rooms'] = "id $pk, booking_id INT NOT NULL, room_type VARCHAR(5) NOT NULL, qty INT NOT NULL, buy_price DECIMAL(12,2) NULL, sell_price DECIMAL(12,2) NULL";
     $tables['booking_free'] = "id $pk, booking_id INT NOT NULL, direction VARCHAR(3) NOT NULL, room_type VARCHAR(5) NOT NULL, qty INT NOT NULL";
     $tables['booking_services'] = "id $pk, booking_id INT NOT NULL, kind VARCHAR(30) NOT NULL, description VARCHAR(255) NULL, buy DECIMAL(12,2) NULL, sell DECIMAL(12,2) NULL, currency VARCHAR(3) NOT NULL";
+    $tables['booking_guests'] = "id $pk, booking_id INT NOT NULL, room_no INT NOT NULL DEFAULT 1, room_type VARCHAR(5) NULL, name VARCHAR(160) NOT NULL, pax VARCHAR(3) NOT NULL DEFAULT 'ADL', note VARCHAR(255) NULL";
+    // Belgeler için ek bilgiler (fiyat kilidinden bağımsız, konfirme sonrası da düzenlenir)
+    $tables['booking_extra'] = "booking_id INT NOT NULL PRIMARY KEY, contact_name VARCHAR(160) NULL, arrival_info VARCHAR(255) NULL, departure_info VARCHAR(255) NULL, hotel_note $txt NULL, voucher_note $txt NULL, updated_by INT NULL, updated_at VARCHAR(19) NULL";
     $tables['fx_rates'] = "id $pk, rate_date VARCHAR(10) NOT NULL, eur_try DECIMAL(12,4) NOT NULL, usd_try DECIMAL(12,4) NOT NULL, note VARCHAR(255) NULL, $meta";
     $tables['notes'] = "id $pk, text $txt NOT NULL, hotel_id INT NULL, agency_id INT NULL, booking_id INT NULL, due_date VARCHAR(10) NULL, done INT NOT NULL DEFAULT 0, done_by INT NULL, done_at VARCHAR(19) NULL, via VARCHAR(20) NULL, $meta";
     $tables['audit_log'] = "id $pk, at VARCHAR(19) NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, ip VARCHAR(64) NULL, entity VARCHAR(30) NOT NULL, entity_id INT NULL, action VARCHAR(30) NOT NULL, summary VARCHAR(255) NULL, old_json $txt NULL, new_json $txt NULL";
@@ -117,6 +120,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         'ix_rooms_book' => 'booking_rooms(booking_id)',
         'ix_free_book' => 'booking_free(booking_id)',
         'ix_srv_book' => 'booking_services(booking_id)',
+        'ix_guest_book' => 'booking_guests(booking_id)',
         'ix_rates_hotel' => 'hotel_rates(hotel_id, date_from)',
         'ix_allot_hotel' => 'hotel_allotments(hotel_id, date_from)',
         'ix_audit_entity' => 'audit_log(entity, entity_id)',
