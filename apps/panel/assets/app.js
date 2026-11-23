@@ -11,7 +11,7 @@
   const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
   const money = (v, cur) => (v === null || v === undefined || v === '') ? '—' : nf2.format(+v) + (cur ? ' ' + curSym(cur) : '');
   const money0 = (v, cur) => (v === null || v === undefined) ? '—' : nf0.format(Math.round(+v)) + (cur ? ' ' + curSym(cur) : '');
-  const kur = (v) => (v === null || v === undefined || v === '') ? '' : (+v).toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' TL';
+  const kur = (v) => (v === null || v === undefined || v === '') ? '' : money(v) + ' TL';
   const curSym = (c) => ({ EUR: '€', USD: '$', TRY: 'TL' }[c] || c);
   const curTag = (c) => c ? `<span class="cur cur-${esc(c)}">${esc(c)}</span>` : '';
   const pad = (n) => String(n).padStart(2, '0');
