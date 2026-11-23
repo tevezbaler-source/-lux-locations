@@ -1,5 +1,6 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
@@ -20,6 +21,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={theme}>
       <AppProvider>
+        <StatusBar style="dark" />
         <Stack screenOptions={{ headerTintColor: Colors.light.text, headerBackButtonDisplayMode: 'minimal' }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="otel/[slug]" options={{ title: '' }} />
