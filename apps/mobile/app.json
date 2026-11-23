@@ -47,6 +47,12 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "description": "Lux Locations: İstanbul merkezli özel turlar, oteller, Boğaz turu ve rezervasyon."
+    "description": "Lux Locations: İstanbul merkezli özel turlar, oteller, Boğaz turu ve rezervasyon.",
+    "extra": {
+      "eas": {
+        "projectId": "0e2bb231-c5f7-4a27-ae34-71acaa85bf47"
+      }
+    },
+    "owner": "foruzel"
   }
 }
