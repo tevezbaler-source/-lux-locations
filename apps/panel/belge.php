@@ -6,6 +6,7 @@ require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/calc.php';
 require __DIR__ . '/lib/data.php';
+require __DIR__ . '/lib/belge.php';
 date_default_timezone_set('Europe/Istanbul');
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
@@ -19,66 +20,12 @@ if (!$user) { header('Location: index.php'); exit; }
 $tip = ($_GET['tip'] ?? '') === 'voucher' ? 'voucher' : 'talep';
 $id = (int)($_GET['id'] ?? 0);
 try {
-    $b = booking_get($id);
-    if ((int)$b['deleted']) throw new ApiError('Bu grup silinmiş.', 410);
-    $hotel = hotel_get((int)$b['hotel_id']);
+    extract(belge_data($id, (string)($_GET['durum'] ?? '')));
 } catch (Throwable $e) {
     http_response_code(404);
     echo '<p style="font-family:sans-serif">Grup bulunamadı.</p>';
     exit;
 }
-$agency = $b['agency_id'] ? q_one('SELECT name, country FROM agencies WHERE id = ?', [$b['agency_id']]) : null;
-$guests = guests_get($id);
-$extra = booking_extra_get($id);
-$calc = calc_booking($b);
-$nights = nights_between($b['check_in'], $b['check_out']);
-
-
-$co = (lx_config()['company'] ?? []) + [
-    'name' => 'LUX LOCATIONS',
-    'address' => 'EVLİYA ÇELEBİ MAHALLESİ, MEŞRUTİYET CADDESİ, DAİRE APT. NO:92 KAT:02 D:05 İSTANBUL/BEYOĞLU 34430 ISTANBUL',
-    'phone' => '0212 523 2310 - 0212 523 2311',
-    'email' => 'reservation@luxlocationstours.com / info@luxlocationstours.com',
-    'web' => 'www.luxlocationstours.com',
-    'logo' => 'assets/logo.jpg',
-];
-
-function h($v): string { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
-function d($iso): string { return $iso ? date('d/m/Y', strtotime($iso)) : ''; }
-function up($v): string { return mb_strtoupper(str_replace(['i', 'ı'], ['İ', 'I'], (string)($v ?? '')), 'UTF-8'); }
-function m($v): string { return $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 2, ',', '.'), '0'), ','); }
-
-$BOARD = ['BB' => 'BED AND BREAKFAST', 'HB' => 'HALF BOARD', 'FB' => 'FULL BOARD', 'RO' => 'ROOM ONLY', 'AI' => 'ALL INCLUSIVE'];
-$ROOM = ['SNGL' => 'SINGLE ROOM', 'DBL' => 'DOUBLE ROOM', 'TWIN' => 'TWIN ROOM', 'TRPL' => 'TRIPLE ROOM', 'QUAD' => 'QUAD ROOM'];
-$cat = $extra['room_category'] ?: 'STANDART ROOM';
-$CAT_SHORT = ['STANDART' => 'STD', 'STANDARD' => 'STD', 'SUPERIOR' => 'SUP', 'DELUXE' => 'DLX', 'FAMILY' => 'FAM', 'SUITE' => 'SUI', 'ECONOMY' => 'ECO'];
-$catWord = strtoupper(explode(' ', trim($cat))[0]);
-$catShort = $CAT_SHORT[$catWord] ?? (mb_substr($catWord, 0, 3) ?: 'STD');
-$boardName = $BOARD[$b['board'] ?? ''] ?? (string)$b['board'];
-
-$lines = $calc['lines'] ?? [];
-$totalRooms = array_sum(array_map(fn($l) => (int)$l['qty'], $lines));
-$roomCounts = implode(', ', array_map(fn($l) => $l['room_type'] . ':' . (int)$l['qty'], $lines));
-$cnt = ['ADL' => 0, 'CHD' => 0, 'INF' => 0];
-foreach ($guests as $g) $cnt[$g['pax']] = ($cnt[$g['pax']] ?? 0) + 1;
-$pax = array_sum($cnt);
-
-// Müşteri adı: az kişide isimler, kalabalık grupta sorumlu + kişi sayısı
-if ($pax && $pax <= 4) $customer = implode('-', array_column($guests, 'name'));
-elseif ($pax) $customer = ($extra['contact_name'] ?: $guests[0]['name']) . " + " . ($pax - 1) . ' pax';
-else $customer = (string)($extra['contact_name'] ?? '');
-
-// Otele giden fiyat satırı (Sejour'daki "NOT: DBL 40 USD DEN KONFIRMESINI RICA EDERIM" gibi)
-$priceParts = array_map(fn($l) => $l['room_type'] . ' ' . m($l['buy_night']) . ' ' . $b['buy_cur'], array_filter($lines, fn($l) => $l['buy_night'] !== null));
-$freeIn = array_values(array_filter($b['free'], fn($f) => $f['direction'] === 'in'));
-$priceNote = $priceParts ? implode(', ', $priceParts) . "'DEN KONFİRMESİNİ RİCA EDERİM." : '';
-if ($freeIn) $priceNote .= ' FREE: ' . implode(', ', array_map(fn($f) => (int)$f['qty'] . ' ' . $f['room_type'], $freeIn)) . '.';
-
-$cancelled = $b['status'] === 'iptal';
-$confirmed = in_array($b['status'], LOCKED_STATUSES, true);
-$state = $cancelled ? 'İPTAL' : ((($_GET['durum'] ?? '') === 'degisiklik') ? 'DEĞİŞİKLİK' : 'YENİ');
-$code = $b['code'] ?: '#' . $id;
-$now = time();
 $title = ($tip === 'voucher' ? 'Voucher ' : 'Otel rezervasyon fişi ') . $code;
 ?><!doctype html>
 <html lang="tr">

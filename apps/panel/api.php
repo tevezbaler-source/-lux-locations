@@ -6,6 +6,8 @@ require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/calc.php';
 require __DIR__ . '/lib/data.php';
 require __DIR__ . '/lib/tcmb.php';
+require __DIR__ . '/lib/mail.php';
+require __DIR__ . '/lib/belge.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -122,6 +124,9 @@ try {
                 out(['users' => q_all('SELECT id, username, name, role, active, created_at, last_login FROM users ORDER BY active DESC, name', [], db_main())]);
             case 'notes':
                 out(['notes' => notes_list(!empty($_GET['all']))]);
+            case 'mail_settings':
+                need('users');
+                out(mail_settings_public());
             case 'assistant_status':
                 require_once __DIR__ . '/lib/assistant.php';
                 out(asst_status());
@@ -180,6 +185,12 @@ try {
             out(agency_save($in));
         case 'guests_save':
             out(guests_save($in));
+        case 'talep_send':
+            out(talep_send($in));
+        case 'mail_settings_save':
+            out(mail_settings_save($in));
+        case 'mail_test':
+            out(mail_test());
         case 'fx_save':
             out(fx_save($in));
         case 'note_save':

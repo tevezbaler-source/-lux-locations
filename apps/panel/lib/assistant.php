@@ -120,7 +120,7 @@ function asst_tools(): array {
         $t('grup_sil', 'Yanlış açılmış, hiç olmamış grubu siler. Gerçek bir grup için grup_iptal kullanın.', $obj(['booking_id' => $int('Grup id')], ['booking_id'])),
         $t('kur_gir', 'Günün kurunu girer.', $obj(['rate_date' => $date('Tarih (boşsa bugün)'), 'eur_try' => $num('1 EUR kaç TL'), 'usd_try' => $num('1 USD kaç TL'), 'note' => $str('Not')], ['eur_try', 'usd_try'])),
         $t('otel_kaydet', 'Otel ekler veya günceller (hotel_id verilirse yalnız verilen alanlar değişir).', $obj(['hotel_id' => $int('Güncellenecek otel'), 'name' => $str('Ad'), 'stars' => $int('Yıldız'), 'region' => $str('Bölge'),
-            'address' => $str('Adres'), 'contacts' => $str('Yetkili ve telefonlar'), 'notes' => $str('Notlar (tamamı)'), 'append_note' => $str('Notun sonuna eklenecek satır'), 'active' => ['type' => 'boolean']])),
+            'address' => $str('Adres'), 'email' => $str('Rezervasyon e-postası (virgülle birden fazla)'), 'contacts' => $str('Yetkili ve telefonlar'), 'notes' => $str('Notlar (tamamı)'), 'append_note' => $str('Notun sonuna eklenecek satır'), 'active' => ['type' => 'boolean']])),
         $t('sozlesme_kaydet', 'Otelin sözleşme (dönem) fiyatını ekler veya günceller.', $obj(['rate_id' => $int('Güncellenecek sözleşme satırı'), 'hotel_id' => $int('Otel'), 'date_from' => $date('Başlangıç'), 'date_to' => $date('Bitiş'),
             'currency' => ['type' => 'string', 'enum' => CURRENCIES], 'board' => ['type' => 'string', 'enum' => ['BB', 'HB', 'FB', 'RO']], 'sngl' => $num('SNGL'), 'dbl' => $num('DBL'), 'twin' => $num('TWIN'), 'trpl' => $num('TRPL'), 'quad' => $num('QUAD'),
             'invoiced' => ['type' => 'boolean', 'description' => 'Faturalı mı'], 'free_every' => $int('Kaç odaya 1 free'), 'free_type' => ['type' => 'string', 'enum' => ROOM_TYPES], 'contact' => $str('Kiminle görüşüldü'), 'note' => $str('Not')], ['hotel_id'])),
@@ -301,7 +301,7 @@ function asst_run_instant(string $name, array $in): array {
 }
 
 /** Onay kartı: ne yapılacağını insan diliyle anlatır (henüz hiçbir şey değişmez). */
-const ASST_LABELS = ['name' => 'Ad', 'stars' => 'Yıldız', 'region' => 'Bölge', 'address' => 'Adres', 'contacts' => 'Yetkili', 'notes' => 'Notlar',
+const ASST_LABELS = ['name' => 'Ad', 'stars' => 'Yıldız', 'region' => 'Bölge', 'address' => 'Adres', 'email' => 'E-posta', 'contacts' => 'Yetkili', 'notes' => 'Notlar',
     'append_note' => 'Not ekle', 'active' => 'Aktif', 'date_from' => 'Başlangıç', 'date_to' => 'Bitiş', 'currency' => 'Döviz', 'board' => 'Pansiyon',
     'sngl' => 'SNGL', 'dbl' => 'DBL', 'twin' => 'TWIN', 'trpl' => 'TRPL', 'quad' => 'QUAD', 'invoiced' => 'Faturalı', 'free_every' => 'Kaç odaya 1 free',
     'free_type' => 'Free oda tipi', 'contact' => 'Görüşülen', 'note' => 'Not', 'country' => 'Ülke', 'aliases' => 'Diğer yazımlar'];
@@ -385,7 +385,7 @@ function asst_run_confirmed(string $name, array $in): array {
             return ['ok' => true, 'link' => '#/kurlar', 'done_summary' => "Kur girildi: {$r['rate_date']}"];
         case 'otel_kaydet':
             $old = !empty($in['hotel_id']) ? hotel_get((int)$in['hotel_id']) : [];
-            $d = asst_merge_simple($old, $in, ['hotel_id' => 'id'], ['name', 'stars', 'region', 'address', 'contacts', 'notes', 'active']);
+            $d = asst_merge_simple($old, $in, ['hotel_id' => 'id'], ['name', 'stars', 'region', 'address', 'email', 'contacts', 'notes', 'active']);
             $r = hotel_save($d);
             return ['ok' => true, 'hotel_id' => (int)$r['id'], 'link' => '#/otel/' . $r['id'], 'done_summary' => 'Otel kaydedildi: ' . $r['name']];
         case 'sozlesme_kaydet':

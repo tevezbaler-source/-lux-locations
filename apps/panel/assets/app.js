@@ -329,7 +329,7 @@
       <div class="row"><a href="#/">← Oteller</a></div>
       <div class="row"><h1>${esc(h.name)} ${h.stars ? `<span class="muted small">${'★'.repeat(+h.stars)}</span>` : ''}</h1>${h.active == 1 ? '' : '<span class="badge st-iptal">Pasif</span>'}<span class="spacer"></span>
         ${can('booking') ? `<a class="btn primary" href="#/grup/yeni?otel=${h.id}">+ Bu otele grup</a>` : ''}${can('hotel') ? '<button id="editH">Otel bilgileri</button>' : ''}</div>
-      <div class="muted">${esc(h.region || '')}${h.address ? ' · ' + esc(h.address) : ''}${h.contacts ? ' · İletişim: ' + esc(h.contacts) : ''}</div>
+      <div class="muted">${esc(h.region || '')}${h.address ? ' · ' + esc(h.address) : ''}${h.email ? ' · ' + esc(h.email) : ''}${h.contacts ? ' · İletişim: ' + esc(h.contacts) : ''}</div>
       ${h.notes ? `<div class="small" style="margin-top:4px;white-space:pre-wrap">${esc(h.notes)}</div>` : ''}
       <div class="filters">
         <button id="prev">← ${days} gün</button><label class="f">Başlangıç<input type="date" id="hFrom" value="${from}"></label><button id="next">${days} gün →</button>
@@ -387,12 +387,13 @@
   }
 
   async function hotelForm(h = null, after = null) {
-    const v = h || { name: '', stars: 4, region: 'Laleli', address: '', contacts: '', notes: '', active: 1 };
+    const v = h || { name: '', stars: 4, region: 'Laleli', address: '', email: '', contacts: '', notes: '', active: 1 };
     const r = await modal(h ? 'Otel bilgileri' : 'Yeni otel', `<div class="grid-form">
       <label class="f wide">Otel adı<input name="name" value="${esc(v.name)}" required></label>
       <label class="f">Yıldız<select name="stars">${[1, 2, 3, 4, 5].map((n) => `<option ${+v.stars === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="f">Bölge<input name="region" value="${esc(v.region || '')}" list="regions"></label>
       <label class="f wide">Adres<input name="address" value="${esc(v.address || '')}"></label>
+      <label class="f wide">Rezervasyon e-postası (fişler buraya gider; birden fazlaysa virgülle)<input name="email" type="text" inputmode="email" value="${esc(v.email || '')}" placeholder="ör. reservation@otel.com"></label>
       <label class="f wide">İletişim kişileri (ad, telefon)<textarea name="contacts">${esc(v.contacts || '')}</textarea></label>
       <label class="f wide">Notlar<textarea name="notes">${esc(v.notes || '')}</textarea></label>
       ${h ? `<label class="chk"><input type="checkbox" name="active" ${+v.active ? 'checked' : ''}> Aktif (pasif oteller ızgarada görünmez)</label>` : ''}
@@ -453,7 +454,10 @@
       <div class="panel">
         <div class="row" style="margin-bottom:8px"><span class="muted small">İsim listesi, varış-dönüş ve notlar konfirme sonrası da düzenlenebilir. Belgeler yeni sekmede açılır, oradan yazdırıp PDF kaydedebilirsiniz.</span><span class="spacer"></span>
           <a class="btn" href="${docUrl('talep')}" target="_blank" rel="noopener">Otel talep fişi</a>
+          ${ed ? '<button type="button" class="btn" id="mSend">Otele e-postayla gönder</button>' : ''}
           <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a></div>
+        <div id="mBox" style="display:none" class="panel"></div>
+        ${(b.mail_log || []).length ? `<div class="small" style="margin:0 0 8px"><b>Otele giden e-postalar:</b> ${b.mail_log.map((l) => `<div class="${+l.ok ? '' : 'neg'}">${trDT(l.at)} · ${esc(l.state || '')} · ${esc(l.to_addr)}${l.cc ? ' (cc ' + esc(l.cc) + ')' : ''} · ${esc(l.user_name || '')}${+l.ok ? (l.error ? ' · ' + esc(l.error) : ' · gönderildi') : ' · <b>gönderilemedi:</b> ' + esc(l.error || '')}</div>`).join('')}</div>` : ''}
         <div class="grid-form">
           <label class="f">Grup sorumlusu / lider<input name="contact_name" value="${esc(x.contact_name || '')}" placeholder="ör. Mr. Ardit Krasniqi"></label>
           <label class="f">Oda kategorisi<input name="room_category" list="rcl" value="${esc(x.room_category || '')}" placeholder="STANDART ROOM"><datalist id="rcl"><option>STANDART ROOM</option><option>SUPERIOR ROOM</option><option>DELUXE ROOM</option><option>FAMILY ROOM</option><option>SUITE</option></datalist></label>
@@ -507,6 +511,36 @@
       tb.insertAdjacentHTML('beforeend', added.map(row).join(''));
       qs('#gPasteTxt', el).value = ''; qs('#gPasteBox', el).style.display = 'none'; count();
       toast(`${added.length} isim eklendi. Kontrol edip kaydedin.`, 'ok');
+    };
+    const ms = qs('#mSend', el);
+    if (ms) ms.onclick = () => {
+      const bx = qs('#mBox', el);
+      if (bx.style.display !== 'none') { bx.style.display = 'none'; return; }
+      const cancelled = b.status === 'iptal';
+      const sent = (b.mail_log || []).some((l) => +l.ok);
+      bx.style.display = '';
+      bx.innerHTML = `<h3 style="margin-top:0">Otel rezervasyon fişini e-postayla gönder</h3>
+        ${b.mail_ready ? '' : '<div class="small neg" style="margin-bottom:6px">E-posta ayarı yapılmamış: Yönetici, Kullanıcılar sayfasındaki "E-posta gönderimi" bölümünden gönderen adresi ve şifresini girmeli.</div>'}
+        ${S.egitim ? '<div class="small" style="margin-bottom:6px"><b>Eğitim bölümündesiniz:</b> gerçek e-posta gitmez, yalnız denemesi kaydedilir.</div>' : ''}
+        <div class="grid-form">
+          <label class="f wide">Otelin e-postası<input id="mTo" inputmode="email" value="${esc(b.hotel_email || '')}" placeholder="ör. reservation@otel.com"></label>
+          <label class="f">Fiş türü<select id="mState">${cancelled ? '<option value="yeni">İPTAL</option>' : `<option value="yeni" ${sent ? '' : 'selected'}>YENİ</option><option value="degisiklik" ${sent ? 'selected' : ''}>DEĞİŞİKLİK</option>`}</select></label>
+          <label class="f">Kopya (CC, isteğe bağlı)<input id="mCc" inputmode="email" placeholder="ör. info@luxlocationstours.com"></label>
+          <label class="f wide">Otele kısa mesaj (fişin üstünde görünür)<textarea id="mMsg" rows="2">${cancelled ? 'Merhaba, aşağıdaki rezervasyonun iptalini rica ederiz.' : 'Merhaba, aşağıdaki rezervasyonun konfirmesini rica ederiz.'}</textarea></label>
+        </div>
+        <div class="row" style="margin-top:8px"><a class="btn" href="${docUrl('talep')}" id="mPrev" target="_blank" rel="noopener">Fişi önizle</a><span class="spacer"></span><button type="button" class="primary" id="mGo">Gönder</button></div>
+        <div class="small muted" style="margin-top:6px">Göndermeden önce misafir listesini kaydedin; fiş kayıtlı bilgilerle gider. Otelin cevabı gönderen adrese (reservation@) gelir.</div>`;
+      qs('#mState', bx).onchange = (e) => { qs('#mPrev', bx).href = docUrl('talep') + (e.target.value === 'degisiklik' ? '&durum=degisiklik' : ''); };
+      qs('#mState', bx).onchange({ target: qs('#mState', bx) });
+      qs('#mGo', bx).onclick = async (e) => {
+        const btn = e.target; btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+        try {
+          const r = await api('talep_send', {}, { booking_id: b.id, to: qs('#mTo', bx).value, cc: qs('#mCc', bx).value, state: qs('#mState', bx).value, message: qs('#mMsg', bx).value });
+          b.mail_log = r.log; b.hotel_email = b.hotel_email || qs('#mTo', bx).value;
+          toast(r.egitim ? 'Eğitim: e-posta gönderilmedi, deneme kaydedildi.' : 'Fiş otele gönderildi.', 'ok');
+          guestSection(el, b);
+        } catch (er) { toast(er.message, 'err'); btn.disabled = false; btn.textContent = 'Gönder'; }
+      };
     };
     qs('#gSave', el).onclick = async () => {
       const guests = qsa('tr', tb).map((tr) => { const o = {}; qsa('[data-k]', tr).forEach((i) => { o[i.dataset.k] = i.value; }); return o; }).filter((g) => g.name.trim());
@@ -893,6 +927,30 @@
       if (!r) return;
       try { await api('user_save', {}, Object.assign(r, u ? { id: u.id } : {})); toast('Kullanıcı kaydedildi.', 'ok'); route(); } catch (e) { toast(e.message, 'err'); }
     };
+    // E-posta gönderimi (otel fişleri) ayarı
+    const mail = await api('mail_settings').catch(() => null);
+    if (mail) {
+      main.insertAdjacentHTML('beforeend', `<h2>E-posta gönderimi</h2>
+        <form class="panel" id="mailF" style="max-width:640px">
+          <div class="small muted" style="margin-bottom:8px">Otel rezervasyon fişleri bu adresten gider, otelin cevabı da bu adrese gelir. Microsoft 365 için sunucu smtp.office365.com, port 587. Şifre kaydedildikten sonra ekranda gösterilmez.</div>
+          <div class="grid-form">
+            <label class="f wide">Gönderen adres<input name="user" inputmode="email" value="${esc(mail.user || '')}" placeholder="reservation@luxlocationstours.com"></label>
+            <label class="f">Şifre ${mail.has_pass ? '(kayıtlı; değişmeyecekse boş)' : ''}<input name="pass" type="password" autocomplete="new-password"></label>
+            <label class="f">Gönderen adı<input name="from_name" value="${esc(mail.from_name || '')}"></label>
+            <label class="f">Sunucu<input name="host" value="${esc(mail.host || 'smtp.office365.com')}"></label>
+            <label class="f">Port<input name="port" inputmode="numeric" value="${mail.port || 587}"></label>
+          </div>
+          <div class="row" style="margin-top:8px"><span class="small ${mail.ready ? '' : 'neg'}">${mail.ready ? 'Hazır.' : 'Henüz ayarlanmadı.'}</span><span class="spacer"></span>
+            <button type="button" id="mailT" ${mail.ready ? '' : 'disabled'}>Deneme e-postası gönder</button><button class="primary">Kaydet</button></div>
+        </form>`);
+      const mf = qs('#mailF', main);
+      mf.onsubmit = async (e) => { e.preventDefault(); try { await api('mail_settings_save', {}, Object.fromEntries(new FormData(mf))); toast('E-posta ayarı kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
+      qs('#mailT', main).onclick = async (e) => {
+        e.target.disabled = true; e.target.textContent = 'Gönderiliyor...';
+        try { const r = await api('mail_test', {}, {}); toast('Deneme e-postası gönderildi: ' + r.to, 'ok'); } catch (er) { toast(er.message, 'err'); }
+        e.target.disabled = false; e.target.textContent = 'Deneme e-postası gönder';
+      };
+    }
     qs('#addU', main).onclick = () => form(null);
     qsa('[data-u]', main).forEach((b) => b.onclick = () => form(d.users.find((u) => u.id == b.dataset.u)));
   }

@@ -66,6 +66,7 @@ function hotel_save(array $in): array {
     $data = [
         'name' => $name, 'stars' => clean_int($in['stars'] ?? null), 'region' => clean_str($in['region'] ?? null, 60),
         'address' => clean_str($in['address'] ?? null), 'contacts' => clean_str($in['contacts'] ?? null, 4000), 'notes' => clean_str($in['notes'] ?? null, 4000),
+        'email' => implode(', ', mail_addr_list((string)($in['email'] ?? ''), 'Otel e-postası')) ?: null,
         'active' => isset($in['active']) ? (int)!!$in['active'] : 1,
     ];
     $id = clean_int($in['id'] ?? null);
@@ -291,6 +292,7 @@ function booking_get(int $id): array {
 function booking_full(int $id): array {
     $b = booking_get($id);
     $b['hotel_name'] = q_val('SELECT name FROM hotels WHERE id = ?', [$b['hotel_id']]);
+    $b['hotel_email'] = q_val('SELECT email FROM hotels WHERE id = ?', [$b['hotel_id']]);
     $b['agency_name'] = $b['agency_id'] ? q_val('SELECT name FROM agencies WHERE id = ?', [$b['agency_id']]) : null;
     $b['calc'] = calc_booking($b);
     $b['history'] = q_all("SELECT id, at, user_name, ip, action, summary, old_json, new_json FROM audit_log WHERE entity = 'grup' AND entity_id = ? ORDER BY id DESC LIMIT 100", [$id]);
@@ -300,6 +302,8 @@ function booking_full(int $id): array {
     }
     $b['guests'] = guests_get($id);
     $b['extra'] = booking_extra_get($id);
+    $b['mail_log'] = mail_log_get($id);
+    $b['mail_ready'] = function_exists('mail_settings_public') ? mail_settings_public()['ready'] : false;
     if ($b['prev_booking_id']) $b['prev'] = q_one('SELECT id, code, agency_id, (SELECT name FROM agencies WHERE id = bookings.agency_id) AS agency_name FROM bookings WHERE id = ?', [$b['prev_booking_id']]);
     $b['next'] = q_one('SELECT id, code, (SELECT name FROM agencies WHERE id = bookings.agency_id) AS agency_name FROM bookings WHERE prev_booking_id = ? AND deleted = 0', [$id]);
     $b['created_by_name'] = $b['created_by'] ? q_val('SELECT name FROM users WHERE id = ?', [$b['created_by']], db_main()) : null;
@@ -704,4 +708,53 @@ function note_done(int $id, bool $done = true): array {
         [$done ? 1 : 0, $done ? $u['id'] : null, $done ? now() : null, $u['id'], now(), $id]);
     audit('not', $id, $done ? 'tamam' : 'geri_ac', ($done ? 'Not tamamlandı: ' : 'Not yeniden açıldı: ') . mb_substr($old['text'], 0, 120));
     return q_one('SELECT * FROM notes WHERE id = ?', [$id]);
+}
+
+
+/* ---------------- Otele e-posta ---------------- */
+
+function mail_log_get(int $bookingId): array {
+    return q_all('SELECT id, kind, state, to_addr, cc, subject, ok, error, user_name, at FROM mail_log WHERE booking_id = ? ORDER BY id DESC LIMIT 20', [$bookingId]);
+}
+
+/** Otel rezervasyon fişini otele e-postayla gönderir ve kaydeder. */
+function talep_send(array $in): array {
+    need('booking');
+    $id = (int)($in['booking_id'] ?? 0);
+    $durum = ($in['state'] ?? '') === 'degisiklik' ? 'degisiklik' : 'yeni';
+    $D = belge_data($id, $durum);
+    $to = mail_addr_list((string)($in['to'] ?? ''), 'Alıcı');
+    if (!$to) throw new ApiError('Otelin e-posta adresini yazın.');
+    $cc = mail_addr_list((string)($in['cc'] ?? ''), 'Kopya (CC)');
+    $u = current_user();
+    $msg = clean_str($in['message'] ?? '', 2000) ?? '';
+    $m = talep_mail($D, $u, $msg);
+    $s = mail_settings();
+    $log = ['booking_id' => $id, 'kind' => 'talep', 'state' => $D['state'], 'to_addr' => implode(', ', $to), 'cc' => implode(', ', $cc) ?: null,
+        'subject' => mb_substr($m['subject'], 0, 255), 'user_id' => $u['id'], 'user_name' => $u['name'], 'at' => now()];
+    if (!empty($_SESSION['egitim'])) {
+        // Eğitim bölümünde gerçek e-posta gitmez; yalnız kayıt düşülür.
+        insert_row('mail_log', $log + ['ok' => 1, 'error' => 'Eğitim: gönderilmedi (deneme)']);
+        return ['ok' => true, 'egitim' => true, 'log' => mail_log_get($id)];
+    }
+    try {
+        mail_send($to, $cc, $m['subject'], $m['html'], $m['text'], $s['user']);
+    } catch (ApiError $e) {
+        insert_row('mail_log', $log + ['ok' => 0, 'error' => mb_substr($e->getMessage(), 0, 500)]);
+        throw $e;
+    }
+    insert_row('mail_log', $log + ['ok' => 1]);
+    audit('grup', $id, 'eposta', "Otel fişi gönderildi ({$D['state']}): " . implode(', ', $to), null, null);
+    // Otelin e-postası kayıtlı değilse ilk gönderimde otele kaydet
+    if (empty($D['hotel']['email'])) q('UPDATE hotels SET email = ? WHERE id = ?', [implode(', ', $to), (int)$D['hotel']['id']]);
+    return ['ok' => true, 'log' => mail_log_get($id)];
+}
+
+/** Ayar testi: kendine (gönderen adrese) kısa bir e-posta. */
+function mail_test(): array {
+    need('users');
+    $s = mail_settings();
+    mail_send([$s['user']], [], 'Otel paneli e-posta testi', '<p style="font-family:Arial">Otel panelinden gönderilen deneme e-postası. Bu e-postayı görüyorsanız ayar doğru.</p>', 'Otel panelinden gönderilen deneme e-postası. Bu e-postayı görüyorsanız ayar doğru.');
+    audit('ayar', null, 'eposta', 'E-posta testi gönderildi: ' . $s['user'], null, null, db_main());
+    return ['ok' => true, 'to' => $s['user']];
 }
