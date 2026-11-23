@@ -439,6 +439,18 @@ function asst_block_array($block): array {
     return json_decode(json_encode($block), true);
 }
 
+/** Hatanın kısa ve güvenli açıklaması (anahtar gizlenir): sınıf, HTTP kodu, API mesajı. */
+function asst_error_reason(Throwable $e): string {
+    $cls = substr(strrchr('\\' . get_class($e), '\\'), 1);
+    $code = method_exists($e, 'getCode') && $e->getCode() ? ' ' . $e->getCode() : '';
+    $msg = $e->getMessage() . ($e->getPrevious() ? ' / ' . $e->getPrevious()->getMessage() : '');
+    $msg = preg_replace('/sk-ant-[A-Za-z0-9_\-]+/', 'sk-ant-***', $msg);
+    $msg = mb_substr(trim(preg_replace('/\s+/', ' ', $msg)), 0, 300);
+    $why = $cls . $code . ': ' . $msg;
+    @file_put_contents(dirname(__DIR__) . '/data/asistan.log', date('Y-m-d H:i:s') . ' ' . $why . "\n", FILE_APPEND | LOCK_EX);
+    return $why;
+}
+
 function asst_call(array $messages): array {
     $c = lx_config();
     $client = asst_client();
@@ -470,9 +482,11 @@ function asst_loop(array $s, array $done = []): array {
         } catch (ApiError $e) {
             throw $e;
         } catch (Throwable $e) {
-            error_log('asistan API hatası: ' . get_class($e) . ' ' . $e->getMessage());
+            $why = asst_error_reason($e);
+            error_log('asistan API hatası: ' . $why);
             asst_save_state($s);
-            throw new ApiError('Asistana şu an ulaşılamıyor. Biraz sonra tekrar deneyin.' . (str_contains(strtolower($e->getMessage()), 'auth') ? ' (API anahtarını kontrol edin.)' : ''), 502);
+            $admin = (current_user()['role'] ?? '') === 'admin';
+            throw new ApiError('Asistana şu an ulaşılamıyor. Biraz sonra tekrar deneyin.' . ($admin ? ' [Ayrıntı: ' . $why . ']' : ''), 502);
         }
         $s['messages'][] = ['role' => 'assistant', 'content' => $r['content']];
         foreach ($r['content'] as $bk) if (($bk['type'] ?? '') === 'text' && trim($bk['text']) !== '') $texts[] = trim($bk['text']);
