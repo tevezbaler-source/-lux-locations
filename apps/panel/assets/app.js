@@ -11,6 +11,7 @@
   const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
   const money = (v, cur) => (v === null || v === undefined || v === '') ? '—' : nf2.format(+v) + (cur ? ' ' + curSym(cur) : '');
   const money0 = (v, cur) => (v === null || v === undefined) ? '—' : nf0.format(Math.round(+v)) + (cur ? ' ' + curSym(cur) : '');
+  const kur = (v) => (v === null || v === undefined || v === '') ? '' : (+v).toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' TL';
   const curSym = (c) => ({ EUR: '€', USD: '$', TRY: 'TL' }[c] || c);
   const curTag = (c) => c ? `<span class="cur cur-${esc(c)}">${esc(c)}</span>` : '';
   const pad = (n) => String(n).padStart(2, '0');
@@ -740,7 +741,7 @@
   /* ================= KURLAR ================= */
   function tcmbBox(t, canFill) {
     if (!t || t.error || !t.USD) return `<div class="panel small muted">Merkez Bankası kuru şu an alınamadı${t && t.error ? ': ' + esc(t.error) : ''}. Kuru elle girebilirsiniz.</div>`;
-    const row = (c, l) => `<tr><td>${l}</td><td class="num">${money(t[c].buy)}</td><td class="num"><b>${money(t[c].sell)}</b></td><td class="num">${t[c].bn_buy ? money(t[c].bn_buy) : ''}</td><td class="num">${t[c].bn_sell ? money(t[c].bn_sell) : ''}</td></tr>`;
+    const row = (c, l) => `<tr><td>${l}</td><td class="num">${kur(t[c].buy)}</td><td class="num"><b>${kur(t[c].sell)}</b></td><td class="num">${kur(t[c].bn_buy)}</td><td class="num">${kur(t[c].bn_sell)}</td></tr>`;
     return `<div class="panel"><div class="row"><b>Merkez Bankası kuru</b><span class="muted small">${trDate(t.date)} tarihli liste${t.fetched_at ? ', son kontrol ' + esc(t.fetched_at.slice(11)) : ''}${t.stale ? ' (Merkez Bankası şu an yanıt vermiyor, son alınan kur)' : ''}</span><span class="spacer"></span>
       <button id="tcmbRefresh" title="Merkez Bankası'ndan yeniden sor">Yenile</button>${canFill ? '<button id="tcmbFill">Forma koy</button>' : ''}</div>
       <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">Döviz alış</th><th class="num">Döviz satış</th><th class="num">Efektif alış</th><th class="num">Efektif satış</th></tr></thead><tbody>
@@ -756,7 +757,7 @@
       ${tcmbBox(t, can('rate') && !S.egitim)}
       ${can('rate') ? `<form class="panel row" id="fxf"><label class="f">Tarih<input type="date" name="rate_date" value="${today()}"></label><label class="f">1 EUR = TL<input name="eur_try" inputmode="decimal" required></label><label class="f">1 USD = TL<input name="usd_try" inputmode="decimal" required></label><label class="f" style="flex:1">Not<input name="note" placeholder="ör. Banka satış kuru"></label><button class="primary">Kaydet</button></form>` : ''}
       <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th class="num">EUR/TL</th><th class="num">USD/TL</th><th class="num">EUR/USD</th><th>Giren</th><th>Not</th></tr></thead><tbody>
-      ${d.rates.map((r) => `<tr><td>${trDate(r.rate_date)}</td><td class="num">${money(r.eur_try)}</td><td class="num">${money(r.usd_try)}</td><td class="num">${(r.eur_try / r.usd_try).toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</td><td>${esc(r.user_name || '')}</td><td>${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kur girilmedi.</td></tr>'}
+      ${d.rates.map((r) => `<tr><td>${trDate(r.rate_date)}</td><td class="num">${kur(r.eur_try)}</td><td class="num">${kur(r.usd_try)}</td><td class="num">${(r.eur_try / r.usd_try).toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</td><td>${esc(r.user_name || '')}</td><td>${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kur girilmedi.</td></tr>'}
       </tbody></table></div>`;
     const f = qs('#fxf', main);
     const tb = qs('#tcmbFill', main);
