@@ -1,4 +1,4 @@
-import { colors, RESERVATIONS, saveRequestCopy, type Reservation, type ReservationContact } from '@lux/shared';
+import { colors, RESERVATIONS, saveRequestCopy, travelDate, type Reservation, type ReservationContact } from '@lux/shared';
 import { fill } from '@lux/shared/i18n';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -42,11 +42,13 @@ export function ReservationScreen({ id, onChange }: { id: Reservation['id']; onC
     const message = lines.join('\n');
     saveRequestCopy(SITE, {
       source: 'app',
+      category: id,
       lang,
       title: text.title,
       full_name: contact.full_name.trim(),
       phone: contact.phone.trim(),
       email: contact.email.trim(),
+      travel_date: travelDate(details),
       message,
     });
     Linking.openURL(waLink(whatsapp, message));

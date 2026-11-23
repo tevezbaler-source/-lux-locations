@@ -15,7 +15,7 @@ Mağaza formlarına kopyalanacak metinler. Uzunluk sınırları parantez içinde
 | Gizlilik politikası | https://luxlocationstours.com/gizlilik/ |
 | İletişim e-postası | info@luxlocationstours.com |
 | Telefon | +90 539 611 41 90 |
-| Veri toplama (App Privacy / Data safety) | Veri toplanmıyor, izleme yok. Form, kullanıcının kendi WhatsApp'ından mesaj olarak gider. |
+| Veri toplama (App Privacy / Data safety) | Rezervasyon formu gönderilince **ad, e-posta, telefon ve talep ayrıntısı** sunucuya kaydedilir (amaç: uygulama işlevi / müşteri iletişimi; kimseyle paylaşılmaz; HTTPS ile şifreli aktarım; silme talebi info@ adresinden). İzleme yok, reklam yok, hesap yok. |
 | Şifreleme | Yalnızca standart HTTPS (muaf) |
 | Giriş gerekli mi? | Hayır (inceleme için demo hesap gerekmez) |
 
@@ -36,7 +36,7 @@ Lux Locations ile Türkiye yolculuğunuzu baştan sona size özel planlayın.
 • 11 dil: Türkçe, English, العربية, Русский, Deutsch, Français, Español, Italiano, 中文, فارسی, Română.
 • İçerik sitemizle aynı anda güncellenir; internet yokken son indirilen içerik görünür.
 
-Hesap açmanız gerekmez, kişisel verinizi toplamayız.
+Hesap açmanız gerekmez; yalnızca talep formunda yazdıklarınızı, talebinizi yanıtlamak için saklarız.
 
 **Anahtar kelimeler, iOS (100):** istanbul,tur,otel,boğaz,tekne,transfer,kapadokya,rezervasyon,seyahat,vip,rehber,türkiye
 
@@ -57,7 +57,7 @@ Plan your trip to Türkiye your way with Lux Locations.
 • 11 languages: Türkçe, English, العربية, Русский, Deutsch, Français, Español, Italiano, 中文, فارسی, Română.
 • Content updates together with our website; the last downloaded content stays available offline.
 
-No account needed, and we do not collect your personal data.
+No account needed; we only keep what you write in a request form, to answer your request.
 
 **Keywords, iOS (100):** istanbul,tour,hotel,bosphorus,cruise,transfer,cappadocia,booking,travel,vip,guide,turkey
 

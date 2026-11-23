@@ -35,6 +35,7 @@ export function ReservationView({ lang, id }: { lang: Locale; id: Reservation["i
         <h2>{text.title}</h2>
         <p>{text.text}</p>
         <ReservationForm
+          category={id}
           title={lang === "tr" ? text.title.toLocaleLowerCase("tr") : text.title}
           fields={fields}
           t={t.form}

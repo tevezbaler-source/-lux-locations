@@ -1,15 +1,16 @@
-# Mobil uygulamanin siteden ihtiyac duydugu 2 dosyayi luxlocationstours.com'a yukler:
+# Mobil uygulamanin siteden ihtiyac duydugu dosyalari luxlocationstours.com'a yukler:
 #   lx-content/app-api.php  (uygulamanin canli icerik adresi)
 #   gizlilik/index.html     (magazalarin istedigi gizlilik politikasi)
+#   admin/db.php, admin/talep.php (formlardan gelen talepleri 'Gelen talepler' paneline kaydeder)
 # Baska dosyaya dokunmaz. Dosyalar bu betikle ayni klasorde, sunucudaki yapiyla durmali.
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $src = $PSScriptRoot
 $hostName = 'luxlocationstours.com'
-$files = @('lx-content/app-api.php', 'gizlilik/index.html')
+$files = @('lx-content/app-api.php', 'gizlilik/index.html', 'admin/db.php', 'admin/talep.php')
 
 Write-Host ''
-Write-Host '=== Lux uygulamasi: siteye 2 dosya yukleniyor ===' -ForegroundColor Green
+Write-Host '=== Lux uygulamasi: siteye dosyalar yukleniyor ===' -ForegroundColor Green
 Write-Host 'Sifre sadece bu bilgisayardan sitenize gider, hicbir yere kaydedilmez.'
 Write-Host ''
 $user = Read-Host 'FTP kullanici adi (bos birakirsan luxlocationftp)'
@@ -68,9 +69,10 @@ try {
   $api = Code "https://$hostName/lx-content/app-api.php?lang=tr"
   $priv = Code "https://$hostName/gizlilik/"
   $mainPage = Code "https://$hostName/"
+  $talep = Code "https://$hostName/admin/talep.php"
   Write-Host ''
-  Write-Host "Kontrol: app-api $api  gizlilik $priv  ana sayfa $mainPage (hepsi 200 olmali)"
-  if ($api -eq '200' -and $priv -eq '200') { Write-Host 'TAMAM. Claude''a "yukledim" yazman yeterli.' -ForegroundColor Green }
+  Write-Host "Kontrol: app-api $api  gizlilik $priv  ana sayfa $mainPage (200 olmali)  talep $talep (405 olmali)"
+  if ($api -eq '200' -and $priv -eq '200' -and $talep -eq '405') { Write-Host 'TAMAM. Claude''a "yukledim" yazman yeterli.' -ForegroundColor Green }
   else { Write-Host 'Bir sorun var; bu ekranin goruntusunu Claude''a gonder.' -ForegroundColor Red }
 }
 catch { Write-Host ''; Write-Host ('HATA: ' + $_.Exception.Message) -ForegroundColor Red }
