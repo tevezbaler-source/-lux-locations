@@ -33,36 +33,53 @@ $extra = booking_extra_get($id);
 $calc = calc_booking($b);
 $nights = nights_between($b['check_in'], $b['check_out']);
 
+
 $co = (lx_config()['company'] ?? []) + [
-    'name' => 'Lux Locations Tours',
-    'address' => 'İstanbul, Türkiye',
-    'phone' => '+90 212 523 23 10',
-    'email' => 'reservation@luxlocationstours.com',
+    'name' => 'LUX LOCATIONS',
+    'address' => 'EVLİYA ÇELEBİ MAHALLESİ, MEŞRUTİYET CADDESİ, DAİRE APT. NO:92 KAT:02 D:05 İSTANBUL/BEYOĞLU 34430 ISTANBUL',
+    'phone' => '0212 523 2310 - 0212 523 2311',
+    'email' => 'reservation@luxlocationstours.com / info@luxlocationstours.com',
     'web' => 'www.luxlocationstours.com',
-    'logo' => '',
+    'logo' => 'assets/logo.jpg',
 ];
 
 function h($v): string { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
-function d($iso): string { return $iso ? date('d.m.Y', strtotime($iso)) : ''; }
-function m($v): string { return $v === null || $v === '' ? '—' : number_format((float)$v, 2, ',', '.'); }
+function d($iso): string { return $iso ? date('d/m/Y', strtotime($iso)) : ''; }
+function up($v): string { return mb_strtoupper(str_replace(['i', 'ı'], ['İ', 'I'], (string)($v ?? '')), 'UTF-8'); }
+function m($v): string { return $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 2, ',', '.'), '0'), ','); }
 
-$BOARD = [
-    'BB' => ['Oda + Kahvaltı', 'Bed & Breakfast'], 'HB' => ['Yarım Pansiyon', 'Half Board'],
-    'FB' => ['Tam Pansiyon', 'Full Board'], 'RO' => ['Sadece Oda', 'Room Only'], 'AI' => ['Her Şey Dahil', 'All Inclusive'],
-];
-$board = $BOARD[$b['board'] ?? ''] ?? [$b['board'], $b['board']];
-$PAX = ['ADL' => ['Yetişkin', 'Adult'], 'CHD' => ['Çocuk', 'Child'], 'INF' => ['Bebek', 'Infant']];
+$BOARD = ['BB' => 'BED AND BREAKFAST', 'HB' => 'HALF BOARD', 'FB' => 'FULL BOARD', 'RO' => 'ROOM ONLY', 'AI' => 'ALL INCLUSIVE'];
+$ROOM = ['SNGL' => 'SINGLE ROOM', 'DBL' => 'DOUBLE ROOM', 'TWIN' => 'TWIN ROOM', 'TRPL' => 'TRIPLE ROOM', 'QUAD' => 'QUAD ROOM'];
+$cat = $extra['room_category'] ?: 'STANDART ROOM';
+$CAT_SHORT = ['STANDART' => 'STD', 'STANDARD' => 'STD', 'SUPERIOR' => 'SUP', 'DELUXE' => 'DLX', 'FAMILY' => 'FAM', 'SUITE' => 'SUI', 'ECONOMY' => 'ECO'];
+$catWord = strtoupper(explode(' ', trim($cat))[0]);
+$catShort = $CAT_SHORT[$catWord] ?? (mb_substr($catWord, 0, 3) ?: 'STD');
+$boardName = $BOARD[$b['board'] ?? ''] ?? (string)$b['board'];
 
+$lines = $calc['lines'] ?? [];
+$totalRooms = array_sum(array_map(fn($l) => (int)$l['qty'], $lines));
+$roomCounts = implode(', ', array_map(fn($l) => $l['room_type'] . ':' . (int)$l['qty'], $lines));
+$cnt = ['ADL' => 0, 'CHD' => 0, 'INF' => 0];
+foreach ($guests as $g) $cnt[$g['pax']] = ($cnt[$g['pax']] ?? 0) + 1;
+$pax = array_sum($cnt);
+
+// Müşteri adı: az kişide isimler, kalabalık grupta sorumlu + kişi sayısı
+if ($pax && $pax <= 4) $customer = implode('-', array_column($guests, 'name'));
+elseif ($pax) $customer = ($extra['contact_name'] ?: $guests[0]['name']) . " + " . ($pax - 1) . ' pax';
+else $customer = (string)($extra['contact_name'] ?? '');
+
+// Otele giden fiyat satırı (Sejour'daki "NOT: DBL 40 USD DEN KONFIRMESINI RICA EDERIM" gibi)
+$priceParts = array_map(fn($l) => $l['room_type'] . ' ' . m($l['buy_night']) . ' ' . $b['buy_cur'], array_filter($lines, fn($l) => $l['buy_night'] !== null));
 $freeIn = array_values(array_filter($b['free'], fn($f) => $f['direction'] === 'in'));
-$roomSummary = implode(', ', array_map(fn($l) => $l['qty'] . ' ' . $l['room_type'], $calc['lines'] ?? []));
-$totalRooms = array_sum(array_map(fn($l) => (int)$l['qty'], $calc['lines'] ?? []));
-$paxCount = count($guests);
-$adl = count(array_filter($guests, fn($g) => $g['pax'] === 'ADL'));
+$priceNote = $priceParts ? implode(', ', $priceParts) . "'DEN KONFİRMESİNİ RİCA EDERİM." : '';
+if ($freeIn) $priceNote .= ' FREE: ' . implode(', ', array_map(fn($f) => (int)$f['qty'] . ' ' . $f['room_type'], $freeIn)) . '.';
 
-$confirmed = in_array($b['status'], LOCKED_STATUSES, true);
 $cancelled = $b['status'] === 'iptal';
-$stamp = $cancelled ? 'İPTAL / CANCELLED' : (($tip === 'voucher' && !$confirmed) ? 'TASLAK / DRAFT – NOT CONFIRMED' : '');
-$title = $tip === 'voucher' ? 'Voucher ' . ($b['code'] ?: '#' . $id) : 'Otel talep fişi ' . ($b['code'] ?: '#' . $id);
+$confirmed = in_array($b['status'], LOCKED_STATUSES, true);
+$state = $cancelled ? 'İPTAL' : ((($_GET['durum'] ?? '') === 'degisiklik') ? 'DEĞİŞİKLİK' : 'YENİ');
+$code = $b['code'] ?: '#' . $id;
+$now = time();
+$title = ($tip === 'voucher' ? 'Voucher ' : 'Otel rezervasyon fişi ') . $code;
 ?><!doctype html>
 <html lang="tr">
 <head>
@@ -70,190 +87,177 @@ $title = $tip === 'voucher' ? 'Voucher ' . ($b['code'] ?: '#' . $id) : 'Otel tal
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($title) ?></title>
 <style>
-  @page { size: A4; margin: 14mm 12mm; }
+  @page { size: A4; margin: 12mm 10mm; }
   * { box-sizing: border-box; }
-  body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #1c2530; font-size: 12.5px; margin: 0; background: #eef1f4; }
-  .sheet { background: #fff; width: 210mm; min-height: 297mm; margin: 16px auto; padding: 14mm 12mm; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
-  .bar { width: 210mm; margin: 16px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
-  .bar button { font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 6px; border: 1px solid #3a5f78; background: #3a5f78; color: #fff; cursor: pointer; }
-  .bar button.alt { background: #fff; color: #3a5f78; }
-  .bar .hint { margin-right: auto; color: #5b6875; font-size: 13px; align-self: center; }
-  header.top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #3a5f78; padding-bottom: 10px; margin-bottom: 14px; }
-  .brand { font-size: 22px; font-weight: 700; letter-spacing: .5px; color: #3a5f78; }
-  .brand small { display: block; font-size: 11px; font-weight: 400; color: #5b6875; letter-spacing: 0; margin-top: 2px; }
-  .brand img { max-height: 54px; display: block; }
-  .doc { text-align: right; }
-  .doc h1 { margin: 0; font-size: 18px; letter-spacing: .5px; }
-  .doc .sub { color: #5b6875; font-size: 11.5px; }
-  .doc .no { font-size: 15px; font-weight: 700; margin-top: 4px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .box { border: 1px solid #cfd8e0; border-radius: 6px; padding: 8px 10px; }
-  .box h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: .2px; color: #5b6875; font-weight: 600; }
-  .box .big { font-size: 15px; font-weight: 700; }
-  .box div { line-height: 1.45; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-  th, td { border: 1px solid #cfd8e0; padding: 5px 7px; text-align: left; vertical-align: top; }
-  th { background: #eef3f7; font-size: 11px; font-weight: 600; color: #3d4b58; }
-  td.n, th.n { text-align: right; white-space: nowrap; }
-  tr.tot td { font-weight: 700; background: #f6f8fa; }
-  h2 { font-size: 13px; letter-spacing: .2px; margin: 14px 0 6px; color: #3a5f78; }
-  .note { border-left: 3px solid #3a5f78; background: #f6f8fa; padding: 7px 10px; white-space: pre-wrap; margin-bottom: 12px; }
-  .muted { color: #5b6875; }
-  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 26px; }
-  .sign div { border-top: 1px solid #8996a2; padding-top: 4px; font-size: 11px; color: #5b6875; }
-  footer { position: absolute; left: 12mm; right: 12mm; bottom: 10mm; border-top: 1px solid #cfd8e0; padding-top: 6px; font-size: 10.5px; color: #5b6875; display: flex; justify-content: space-between; gap: 10px; }
-  .stamp { position: absolute; top: 44%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg); font-size: 44px; font-weight: 800; color: rgba(192, 57, 43, .16); border: 6px solid rgba(192, 57, 43, .16); padding: 6px 22px; white-space: nowrap; pointer-events: none; }
-  .warn { width: 210mm; margin: 8px auto 0; background: #fff4e5; border: 1px solid #f0c68a; color: #7a4a00; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+  body { font-family: Tahoma, Verdana, "Segoe UI", Arial, sans-serif; color: #111; font-size: 12.5px; margin: 0; background: #e9ecef; }
+  .sheet { background: #fff; width: 210mm; min-height: 297mm; margin: 12px auto 24px; padding: 12mm 10mm; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+  .bar { width: 210mm; margin: 12px auto 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bar button, .bar a { font: inherit; font-size: 14px; padding: 7px 14px; border-radius: 6px; border: 1px solid #3a5f78; background: #fff; color: #3a5f78; cursor: pointer; text-decoration: none; }
+  .bar button.main { background: #3a5f78; color: #fff; }
+  .bar .on { background: #dfe8ef; }
+  .bar .hint { margin-right: auto; color: #555; font-size: 13px; }
+  .warn { width: 210mm; margin: 8px auto 0; background: #fff4e5; border: 1px solid #f0c68a; color: #7a4a00; padding: 7px 12px; border-radius: 6px; font-size: 13px; }
+  .logo { width: 150px; height: auto; display: block; }
+  table { width: 100%; border-collapse: collapse; }
+  .g th { background: #c8c8c8; font-weight: 700; padding: 3px 6px; text-align: center; }
+  .g td { padding: 3px 6px; text-align: center; }
+  .g .l { text-align: left; } .g .r { text-align: right; }
+  .gap { height: 10px; }
+  .stamp { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-22deg); font-size: 46px; font-weight: 800; color: rgba(192, 57, 43, .18); border: 6px solid rgba(192, 57, 43, .18); padding: 6px 22px; white-space: nowrap; pointer-events: none; }
+  .addr { border: 1.5px dashed #444; padding: 6px 10px; text-align: center; margin-top: 26px; line-height: 1.5; }
+  .addr u { display: block; }
+  .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 2px; font-size: 12px; }
+  .lists .h { border-bottom: 1px dashed #444; display: inline-block; margin-bottom: 4px; }
+  /* Otel rezervasyon fişi */
+  .rf-head { display: grid; grid-template-columns: 190px 1fr 140px; align-items: start; }
+  .rf-head .mid { text-align: center; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: 15px; line-height: 1.5; }
+  .rf-head .mid .city { margin-top: 10px; font-size: 13.5px; }
+  .rf-head .meta { text-align: right; font-size: 11px; line-height: 1.4; }
+  .vno { font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: 15px; margin-top: 4px; }
+  .state { display: grid; grid-template-columns: 1fr auto; align-items: end; font-family: Arial, Helvetica, sans-serif; margin: 2px 0 8px; }
+  .state b.big { font-size: 26px; text-align: center; grid-column: 1; }
+  .rf { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; display: grid; grid-template-columns: 1.1fr 1.6fr 1fr; gap: 0 12px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 4px; align-items: baseline; }
+  .kv span { text-align: right; } .kv b { font-weight: 700; }
+  .kv.right span { text-align: right; } .kv.right { justify-items: end; grid-template-columns: 1fr auto; }
+  .rf .desc { color: #222; font-size: 11.5px; margin-left: 18px; }
+  .note { font-family: Arial, Helvetica, sans-serif; margin: 14px 0 10px 50px; } .note b { font-size: 13px; }
+  .gl { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; margin-top: 8px; }
+  .gl th { text-align: left; font-weight: 400; border-bottom: 1px solid #111; padding: 2px 4px; }
+  .gl td { padding: 1px 4px; }
+  .tot { font-family: Arial, Helvetica, sans-serif; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 4px 0 6px 40px; font-size: 11.5px; line-height: 1.5; }
+  .muted { color: #666; }
   @media print {
     body { background: #fff; }
     .bar, .warn { display: none; }
     .sheet { margin: 0; padding: 0; box-shadow: none; width: auto; min-height: 0; }
-    footer { position: fixed; left: 0; right: 0; bottom: 0; }
   }
   @media (max-width: 820px) {
     .sheet, .bar, .warn { width: auto; margin-left: 8px; margin-right: 8px; }
-    .sheet { padding: 16px; min-height: 0; }
-    .grid2 { grid-template-columns: 1fr; }
-    footer { position: static; margin-top: 20px; }
+    .sheet { padding: 12px; min-height: 0; overflow-x: auto; }
   }
 </style>
 </head>
 <body>
 <div class="bar">
   <span class="hint">PDF için: Yazdır → Hedef: "PDF olarak kaydet"</span>
-  <button class="alt" onclick="window.close()">Kapat</button>
-  <button onclick="window.print()">Yazdır / PDF</button>
+  <?php if ($tip === 'talep' && !$cancelled): ?>
+    <a class="<?= $state === 'YENİ' ? 'on' : '' ?>" href="?tip=talep&amp;id=<?= $id ?>">Yeni</a>
+    <a class="<?= $state === 'DEĞİŞİKLİK' ? 'on' : '' ?>" href="?tip=talep&amp;id=<?= $id ?>&amp;durum=degisiklik">Değişiklik</a>
+  <?php endif; ?>
+  <button onclick="window.close()">Kapat</button>
+  <button class="main" onclick="window.print()">Yazdır / PDF</button>
 </div>
 <?php if (!$guests): ?><div class="warn">Misafir listesi boş. Grubun "Misafirler ve belgeler" bölümünden isimleri ekleyebilirsiniz.</div><?php endif; ?>
 <?php if ($tip === 'voucher' && !$confirmed && !$cancelled): ?><div class="warn">Grup henüz konfirme değil; voucher "TASLAK" damgasıyla çıkar.</div><?php endif; ?>
 
 <div class="sheet">
-  <?php if ($stamp): ?><div class="stamp"><?= h($stamp) ?></div><?php endif; ?>
-  <header class="top">
-    <div class="brand">
-      <?php if ($co['logo']): ?><img src="<?= h($co['logo']) ?>" alt="<?= h($co['name']) ?>"><?php else: ?>LUX LOCATIONS<small><?= h($co['name']) ?></small><?php endif; ?>
-    </div>
-    <div class="doc">
-      <?php if ($tip === 'voucher'): ?>
-        <h1>HOTEL VOUCHER</h1><div class="sub">Otel Voucher'ı</div>
-        <div class="no">No: <?= h($b['code'] ?: '#' . $id) ?></div>
-      <?php else: ?>
-        <h1>REZERVASYON TALEBİ</h1><div class="sub">Hotel Reservation Request</div>
-        <div class="no">Ref: <?= h($b['code'] ?: '#' . $id) ?></div>
-      <?php endif; ?>
-      <div class="sub"><?= h(date('d.m.Y H:i')) ?></div>
-    </div>
-  </header>
+<?php if ($cancelled): ?><div class="stamp">İPTAL / CANCELLED</div><?php elseif ($tip === 'voucher' && !$confirmed): ?><div class="stamp">TASLAK / DRAFT</div><?php endif; ?>
 
-<?php if ($tip === 'talep'): ?>
-  <div class="grid2">
-    <div class="box">
-      <h3>Kime</h3>
-      <div class="big"><?= h($hotel['name']) ?></div>
-      <?php if ($hotel['address']): ?><div><?= h($hotel['address']) ?></div><?php endif; ?>
-      <?php if ($hotel['contacts']): ?><div class="muted" style="white-space:pre-wrap"><?= h($hotel['contacts']) ?></div><?php endif; ?>
+<?php if ($tip === 'voucher'): ?>
+  <table><tr>
+    <td style="width:190px"><?php if ($co['logo']): ?><img class="logo" src="<?= h($co['logo']) ?>" alt="LUX"><?php else: ?><b style="font-size:22px;color:#3a5f78">LUX LOCATIONS</b><?php endif; ?></td>
+    <td style="text-align:center;font-size:20px;padding-top:40px">VOUCHER FORMU</td>
+    <td style="width:190px"></td>
+  </tr></table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th class="l">Voucher No</th><th>Acenta Adı</th><th class="r">Basım Tarihi</th><th class="r" style="width:80px">Saat</th></tr>
+    <tr><td class="l"><?= h($code) ?></td><td><?= h($co['name']) ?></td><td class="r"><?= date('d/m/Y', $now) ?></td><td class="r"><?= date('H:i:s', $now) ?></td></tr>
+  </table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th>Müşteri Adı</th><th style="width:70px">Yetişkin</th><th style="width:80px">Extra Bed</th><th style="width:60px">Çocuk</th><th style="width:60px">Bebek</th><th style="width:60px">Toplam</th></tr>
+    <tr><td class="l"><?= h($customer) ?></td><td><?= $cnt['ADL'] ?: '' ?></td><td></td><td><?= $cnt['CHD'] ?: '' ?></td><td><?= $cnt['INF'] ?: '' ?></td><td><?= $pax ?: '' ?></td></tr>
+  </table>
+  <div style="font-weight:700;margin:6px 0 2px">Servis Tanımı</div>
+  <table class="g">
+    <tr><th style="width:50%">Otel</th><th>Adres</th></tr>
+    <tr><td class="l"><?= h(up($hotel['name'])) ?></td><td style="font-size:11px"><?= h($hotel['address']) ?></td></tr>
+  </table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th>Oda</th><th>Oda Tipi</th><th>Pansiyon</th></tr>
+    <?php foreach ($lines as $l): ?>
+      <tr><td><?= h($ROOM[$l['room_type']] ?? $l['room_type']) ?><?= count($lines) > 1 ? ' x ' . (int)$l['qty'] : '' ?></td><td><?= h(up($cat)) ?></td><td><?= h($boardName) ?></td></tr>
+    <?php endforeach; ?>
+  </table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th style="width:22%"></th><th>Giriş Tarihi</th><th>Çıkış Tarihi</th><th>Oda Sayısı</th><th>Geceleme</th><th style="width:22%"></th></tr>
+    <tr><td></td><td><?= d($b['check_in']) ?></td><td><?= d($b['check_out']) ?></td><td><?= $totalRooms ?></td><td><?= $nights ?></td><td></td></tr>
+  </table>
+  <div style="margin:8px 0 0 40px">Uçuş Detayları : <?= h(trim(($extra['arrival_info'] ?? '') . (($extra['departure_info'] ?? '') ? ' / ' . $extra['departure_info'] : ''))) ?></div>
+  <?php if ($b['hotel_conf_code']): ?><div style="margin:4px 0 0 40px">Otel Konfirme No : <b><?= h($b['hotel_conf_code']) ?></b></div><?php endif; ?>
+  <?php if ($extra['voucher_note']): ?><div style="margin:4px 0 0 40px;white-space:pre-wrap">Not : <?= h($extra['voucher_note']) ?></div><?php endif; ?>
+
+  <div class="addr" style="margin-top:<?= $extra['voucher_note'] ? 24 : 60 ?>px">
+    <u>Acenta Adres</u>
+    <?= h($co['address']) ?><br>
+    Telefon : <?= h($co['phone']) ?><br><br>
+    <?= h($co['email']) ?><br>
+    <?= h($co['web']) ?>
+  </div>
+  <div style="font-size:12px;margin-top:2px">Voucher: <?= h($code) ?></div>
+  <div class="lists">
+    <div><span class="h">Müşteri İsim Listesi</span>
+      <?php foreach ($guests as $g): ?><div><?= h($g['name']) ?><?= $g['pax'] !== 'ADL' ? ' (' . h($g['pax']) . ')' : '' ?></div><?php endforeach; ?>
     </div>
-    <div class="box">
-      <h3>Kimden</h3>
-      <div class="big"><?= h($co['name']) ?></div>
-      <div><?= h($co['phone']) ?> · <?= h($co['email']) ?></div>
-      <div class="muted">Hazırlayan: <?= h($user['name']) ?></div>
+    <div><span class="h">Uçak Detay Listesi</span>
+      <div><?= h($extra['arrival_info'] ?: '. ..') ?></div><div><?= h($extra['departure_info'] ?: '. ..') ?></div>
     </div>
   </div>
 
-  <table>
-    <tr><th>Giriş</th><th>Çıkış</th><th class="n">Gece</th><th>Pansiyon</th><th class="n">Oda</th><th>Durum</th></tr>
-    <tr><td><?= d($b['check_in']) ?></td><td><?= d($b['check_out']) ?></td><td class="n"><?= $nights ?></td>
-      <td><?= h($b['board']) ?> – <?= h($board[0]) ?></td><td class="n"><?= $totalRooms ?></td><td><?= h(STATUSES[$b['status']] ?? $b['status']) ?><?= $b['option_until'] ? ' (opsiyon ' . d($b['option_until']) . ')' : '' ?></td></tr>
-  </table>
-
-  <h2>Odalar ve fiyat</h2>
-  <table>
-    <tr><th>Oda tipi</th><th class="n">Adet</th><th class="n">Gece</th><th class="n">Gecelik fiyat</th><th class="n">Toplam</th></tr>
-    <?php foreach ($calc['lines'] ?? [] as $l): ?>
-      <tr><td><?= h($l['room_type']) ?></td><td class="n"><?= (int)$l['qty'] ?></td><td class="n"><?= $nights ?></td>
-        <td class="n"><?= m($l['buy_night']) ?> <?= h($b['buy_cur']) ?></td><td class="n"><?= m($l['buy_total']) ?> <?= h($b['buy_cur']) ?></td></tr>
-    <?php endforeach; ?>
-    <?php foreach ($freeIn as $f): ?>
-      <tr><td colspan="4">Free (otelden): <?= (int)$f['qty'] ?> <?= h($f['room_type']) ?></td><td class="n">dahil</td></tr>
-    <?php endforeach; ?>
-    <?php if (($calc['free_in'] ?? 0) > 0): ?>
-      <tr><td colspan="4">Free indirimi</td><td class="n">−<?= m($calc['free_in']) ?> <?= h($b['buy_cur']) ?></td></tr>
-    <?php endif; ?>
-    <tr class="tot"><td colspan="4">Toplam</td><td class="n"><?= m($calc['buy_net'] ?? null) ?> <?= h($b['buy_cur']) ?></td></tr>
-  </table>
-
-  <?php $srv = array_values(array_filter($b['services'], fn($s) => (float)($s['buy'] ?? 0) > 0)); if ($srv): ?>
-    <h2>Ek hizmetler</h2>
-    <table>
-      <tr><th>Hizmet</th><th>Açıklama</th><th class="n">Tutar</th></tr>
-      <?php foreach ($srv as $s): ?><tr><td><?= h($s['kind']) ?></td><td><?= h($s['description']) ?></td><td class="n"><?= m($s['buy']) ?> <?= h($s['currency']) ?></td></tr><?php endforeach; ?>
-    </table>
-  <?php endif; ?>
 <?php else: ?>
-  <div class="grid2">
-    <div class="box">
-      <h3>Hotel / Otel</h3>
-      <div class="big"><?= h($hotel['name']) ?></div>
-      <?php if ($hotel['address']): ?><div><?= h($hotel['address']) ?></div><?php endif; ?>
-      <?php if ($hotel['contacts']): ?><div class="muted" style="white-space:pre-wrap"><?= h($hotel['contacts']) ?></div><?php endif; ?>
+  <div class="rf-head">
+    <div><?php if ($co['logo']): ?><img class="logo" src="<?= h($co['logo']) ?>" alt="LUX"><?php else: ?><b style="font-size:22px;color:#3a5f78">LUX LOCATIONS</b><?php endif; ?>
+      <div class="vno">Voucher No: <?= h($code) ?></div></div>
+    <div class="mid">OTEL REZERVASYON FİŞİ<br><?= h(up($hotel['name'])) ?><div class="city"><?= h(up($hotel['region'] ?: 'İSTANBUL')) ?></div></div>
+    <div class="meta">Tarih : <?= date('d/m/Y', $now) ?><br>Saat : <?= date('H:i:s', $now) ?><br>Hazırlayan : <?= h($user['name']) ?></div>
+  </div>
+  <div class="state"><b class="big"><?= h($state) ?></b><span>Satış Tarihi <b><?= d(substr((string)$b['created_at'], 0, 10) ?: date('Y-m-d')) ?></b></span></div>
+
+  <div class="rf">
+    <div class="kv">
+      <span>Giriş Tarihi :</span><b><?= d($b['check_in']) ?></b>
+      <span>Çıkış Tarihi :</span><b><?= d($b['check_out']) ?></b>
+      <span>Gün :</span><b><?= $nights ?></b>
+      <span>Durum :</span><b><?= h(STATUSES[$b['status']] ?? $b['status']) ?><?= $b['option_until'] && !$confirmed ? ' (opsiyon ' . d($b['option_until']) . ')' : '' ?></b>
+      <?php if ($b['hotel_conf_code']): ?><span>Otel Konf. No :</span><b><?= h($b['hotel_conf_code']) ?></b><?php endif; ?>
     </div>
-    <div class="box">
-      <h3>Agency / Acente</h3>
-      <div class="big"><?= h($agency['name'] ?? '') ?></div>
-      <?php if (!empty($agency['country'])): ?><div><?= h($agency['country']) ?></div><?php endif; ?>
-      <?php if ($extra['contact_name']): ?><div>Lead guest / Grup sorumlusu: <b><?= h($extra['contact_name']) ?></b></div><?php endif; ?>
+    <div class="kv" style="grid-template-columns:auto auto 1fr">
+      <span>Oda Sayısı :</span><b><?= $totalRooms ?></b><i></i>
+      <?php foreach ($lines as $l): ?><span>Oda :</span><b><?= h($l['room_type']) ?><?= count($lines) > 1 ? ' x' . (int)$l['qty'] : '' ?></b><span class="desc" style="text-align:left">(<?= h($ROOM[$l['room_type']] ?? $l['room_type']) ?>)</span><?php endforeach; ?>
+      <span>Oda Tipi :</span><b><?= h($catShort) ?></b><span class="desc" style="text-align:left">(<?= h(up($cat)) ?>)</span>
+      <span>Pansiyon :</span><b><?= h($b['board']) ?></b><span class="desc" style="text-align:left">(<?= h($boardName) ?>)</span>
+    </div>
+    <div class="kv right">
+      <span>Yetişkin :</span><b><?= $cnt['ADL'] ?: '' ?></b>
+      <span>Ext. Bed :</span><b></b>
+      <span>Çocuk :</span><b><?= $cnt['CHD'] ?: '' ?></b>
+      <span>Bebek :</span><b><?= $cnt['INF'] ?: '' ?></b>
+      <span>Toplam Pax :</span><b><?= $pax ?: '' ?></b>
+      <span>Döviz :</span><b><?= h($b['buy_cur']) ?></b>
     </div>
   </div>
+  <div style="font-family:Arial,Helvetica,sans-serif;margin:14px 0 0 60px">Milliyet : <b><?= h($extra['nationality']) ?></b></div>
+  <?php if ($priceNote || $extra['hotel_note']): ?>
+    <div class="note">NOT: <b><?= h(up(trim($priceNote . ' ' . ($extra['hotel_note'] ?? '')))) ?></b></div>
+  <?php endif; ?>
 
-  <table>
-    <tr><th>Check-in</th><th>Check-out</th><th class="n">Nights / Gece</th><th>Board / Pansiyon</th><th>Rooms / Oda</th><th class="n">Pax</th></tr>
-    <tr><td><?= d($b['check_in']) ?></td><td><?= d($b['check_out']) ?></td><td class="n"><?= $nights ?></td>
-      <td><?= h($b['board']) ?> – <?= h($board[1]) ?></td><td><?= h($roomSummary) ?></td><td class="n"><?= $paxCount ?: '—' ?></td></tr>
+  <table class="gl">
+    <tr><th style="width:34%">SOYADI, ADI</th><th>ODA</th><th>YAŞ/D.TAR.</th><th>GELİŞ YERİ</th><th>SAAT</th><th>DÖNÜŞ YERİ</th><th>SAAT</th></tr>
+    <?php foreach ($guests as $i => $g): ?>
+      <tr><td><?= h($g['name']) ?></td><td><?= (int)$g['room_no'] ?> <?= h($g['room_type']) ?></td><td><?= h($g['pax'] !== 'ADL' ? $g['pax'] . ($g['note'] ? ' ' . $g['note'] : '') : ($g['note'] ?? '')) ?></td>
+        <td><?= $i === 0 ? h($extra['arrival_info']) : '' ?></td><td></td><td><?= $i === 0 ? h($extra['departure_info']) : '' ?></td><td></td></tr>
+    <?php endforeach; ?>
   </table>
-  <?php if ($b['hotel_conf_code']): ?>
-    <div class="box" style="margin-bottom:12px"><h3>Hotel confirmation no / Otel konfirme no</h3><div class="big"><?= h($b['hotel_conf_code']) ?></div></div>
-  <?php endif; ?>
+  <div class="tot">
+    <b>TOPLAM PAX :</b> <?= $pax ?> <?= $pax ? '(Yetişkin: ' . $cnt['ADL'] . ($cnt['CHD'] ? ', Çocuk: ' . $cnt['CHD'] : '') . ($cnt['INF'] ? ', Bebek: ' . $cnt['INF'] : '') . ' )' : '' ?><br>
+    <b>TOPLAM ODA :</b> <?= $totalRooms ?> (<?= h($roomCounts) ?>)
+  </div>
+  <p style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;margin-top:14px" class="muted">Lütfen konfirme numaranızı reservation@luxlocationstours.com adresine iletiniz.</p>
 <?php endif; ?>
-
-  <h2><?= $tip === 'voucher' ? 'Guests / Misafirler' : 'Misafir listesi (rooming list)' ?></h2>
-  <?php if ($guests): ?>
-    <table>
-      <tr><th class="n">#</th><th class="n"><?= $tip === 'voucher' ? 'Room' : 'Oda' ?></th><th><?= $tip === 'voucher' ? 'Type' : 'Tip' ?></th><th><?= $tip === 'voucher' ? 'Name / Ad Soyad' : 'Ad Soyad' ?></th><th>Pax</th><th><?= $tip === 'voucher' ? 'Note' : 'Not' ?></th></tr>
-      <?php foreach ($guests as $i => $g): ?>
-        <tr><td class="n"><?= $i + 1 ?></td><td class="n"><?= (int)$g['room_no'] ?></td><td><?= h($g['room_type']) ?></td><td><?= h($g['name']) ?></td>
-          <td><?= h($PAX[$g['pax']][$tip === 'voucher' ? 1 : 0] ?? $g['pax']) ?></td><td><?= h($g['note']) ?></td></tr>
-      <?php endforeach; ?>
-    </table>
-    <div class="muted" style="margin-top:-6px;margin-bottom:10px"><?php if ($tip === 'voucher'): ?>Total / Toplam: <?= $paxCount ?> pax<?= $adl !== $paxCount ? " ($adl adult / yetişkin)" : '' ?><?php else: ?>Toplam <?= $paxCount ?> kişi<?= $adl !== $paxCount ? " ($adl yetişkin)" : '' ?><?php endif; ?></div>
-  <?php else: ?>
-    <div class="muted" style="margin-bottom:12px"><?= $tip === 'voucher' ? 'Guest names to follow. / İsim listesi ayrıca iletilecektir.' : 'İsim listesi ayrıca iletilecektir.' ?></div>
-  <?php endif; ?>
-
-  <?php if ($extra['arrival_info'] || $extra['departure_info']): ?>
-    <table>
-      <tr><th><?= $tip === 'voucher' ? 'Arrival / Varış' : 'Varış' ?></th><th><?= $tip === 'voucher' ? 'Departure / Dönüş' : 'Dönüş' ?></th></tr>
-      <tr><td><?= h($extra['arrival_info']) ?></td><td><?= h($extra['departure_info']) ?></td></tr>
-    </table>
-  <?php endif; ?>
-
-  <?php $note = $tip === 'voucher' ? $extra['voucher_note'] : $extra['hotel_note']; if ($note): ?>
-    <h2><?= $tip === 'voucher' ? 'Notes / Notlar' : 'Notlar' ?></h2>
-    <div class="note"><?= h($note) ?></div>
-  <?php endif; ?>
-
-  <?php if ($tip === 'talep'): ?>
-    <p>Yukarıdaki rezervasyonun konfirme edilmesini rica ederiz. Lütfen konfirme numaranızı <b><?= h($co['email']) ?></b> adresine iletiniz.</p>
-    <div class="sign"><div>Otel konfirme no / tarih</div><div>Otel kaşe / imza</div></div>
-  <?php else: ?>
-    <p class="muted">Please present this voucher at hotel check-in. / Lütfen bu voucher'ı otele girişte gösteriniz.<br>
-      Extras (minibar, phone, etc.) are payable by guests directly to the hotel. / Ekstralar misafir tarafından otele ödenir.</p>
-  <?php endif; ?>
-
-  <footer>
-    <span><?= h($co['name']) ?> · <?= h($co['address']) ?></span>
-    <span><?= h($co['phone']) ?> · <?= h($co['email']) ?> · <?= h($co['web']) ?></span>
-  </footer>
 </div>
 </body>
 </html>

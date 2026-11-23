@@ -228,7 +228,7 @@ function fx_save(array $in): array {
 
 /* ---------------- Misafir listesi ve belge bilgileri ---------------- */
 
-const EXTRA_FIELDS = ['contact_name', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'];
+const EXTRA_FIELDS = ['contact_name', 'room_category', 'nationality', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'];
 
 function guests_get(int $bookingId): array {
     return q_all('SELECT room_no, room_type, name, pax, note FROM booking_guests WHERE booking_id = ? ORDER BY room_no, id', [$bookingId]);

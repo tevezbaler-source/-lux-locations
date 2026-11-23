@@ -456,6 +456,8 @@
           <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a></div>
         <div class="grid-form">
           <label class="f">Grup sorumlusu / lider<input name="contact_name" value="${esc(x.contact_name || '')}" placeholder="ör. Mr. Ardit Krasniqi"></label>
+          <label class="f">Oda kategorisi<input name="room_category" list="rcl" value="${esc(x.room_category || '')}" placeholder="STANDART ROOM"><datalist id="rcl"><option>STANDART ROOM</option><option>SUPERIOR ROOM</option><option>DELUXE ROOM</option><option>FAMILY ROOM</option><option>SUITE</option></datalist></label>
+          <label class="f">Milliyet<input name="nationality" value="${esc(x.nationality || '')}" placeholder="ör. Kosova"></label>
           <label class="f">Varış (uçuş, saat)<input name="arrival_info" value="${esc(x.arrival_info || '')}" placeholder="ör. 12.12 TK1018 14:30 IST"></label>
           <label class="f">Dönüş (uçuş, saat)<input name="departure_info" value="${esc(x.departure_info || '')}" placeholder="ör. 15.12 TK1019 18:10 IST"></label>
         </div>
@@ -508,7 +510,7 @@
     };
     qs('#gSave', el).onclick = async () => {
       const guests = qsa('tr', tb).map((tr) => { const o = {}; qsa('[data-k]', tr).forEach((i) => { o[i.dataset.k] = i.value; }); return o; }).filter((g) => g.name.trim());
-      const extra = {}; ['contact_name', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'].forEach((k) => { extra[k] = qs(`[name=${k}]`, el).value; });
+      const extra = {}; ['contact_name', 'room_category', 'nationality', 'arrival_info', 'departure_info', 'hotel_note', 'voucher_note'].forEach((k) => { extra[k] = qs(`[name=${k}]`, el).value; });
       try {
         const r = await api('guests_save', {}, { booking_id: b.id, guests, extra });
         b.guests = r.guests; b.extra = r.extra;
