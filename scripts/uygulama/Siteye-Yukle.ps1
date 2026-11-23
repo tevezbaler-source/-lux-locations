@@ -1,13 +1,14 @@
 # Mobil uygulamanin siteden ihtiyac duydugu dosyalari luxlocationstours.com'a yukler:
 #   lx-content/app-api.php  (uygulamanin canli icerik adresi)
 #   gizlilik/index.html     (magazalarin istedigi gizlilik politikasi)
-#   admin/db.php, admin/talep.php (formlardan gelen talepleri 'Gelen talepler' paneline kaydeder)
+#   admin/db.php, admin/talep.php (formlardan gelen talepleri kaydeder)
+#   admin/site/index.php (tek panel: Talepler + site duzenleme), admin/index.php (eski paneli buraya yonlendirir)
 # Baska dosyaya dokunmaz. Dosyalar bu betikle ayni klasorde, sunucudaki yapiyla durmali.
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $src = $PSScriptRoot
 $hostName = 'luxlocationstours.com'
-$files = @('lx-content/app-api.php', 'gizlilik/index.html', 'admin/db.php', 'admin/talep.php')
+$files = @('lx-content/app-api.php', 'gizlilik/index.html', 'admin/db.php', 'admin/talep.php', 'admin/index.php', 'admin/site/index.php')
 
 Write-Host ''
 Write-Host '=== Lux uygulamasi: siteye dosyalar yukleniyor ===' -ForegroundColor Green

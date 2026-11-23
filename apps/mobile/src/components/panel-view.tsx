@@ -6,7 +6,7 @@ import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react
 import { setAdmin } from '@/lib/admin';
 import { SITE } from '@/lib/site';
 
-// Sitedeki yönetim paneli (/admin/ talepler; oradan site düzenlemeye geçilir) uygulamanın içinde açılır.
+// Sitedeki tek yönetim paneli (/admin/site/) uygulamanın içinde açılır: Talepler bölümüyle başlar, soldan site düzenlemeye geçilir.
 // Giriş başarılıysa (sayfada "Çıkış" düğmesi varsa) telefon ekip moduna geçer; "Çıkış"a basılınca çıkar.
 const WATCH = `(function(){
   var post=function(m){window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(m)};
@@ -14,7 +14,7 @@ const WATCH = `(function(){
   if(out){post('in');out.form.addEventListener('submit',function(){post('out')});}
 })();true;`;
 
-export function PanelView({ path = '/admin/' }: { path?: string }) {
+export function PanelView({ path = '/admin/site/?page=talepler' }: { path?: string }) {
   const [loading, setLoading] = useState(true);
 
   function onMessage(e: WebViewMessageEvent) {
