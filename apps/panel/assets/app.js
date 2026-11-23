@@ -98,6 +98,7 @@
     document.body.classList.remove('egitim');
     $app.innerHTML = `<form class="login" autocomplete="on">
       <h1>Otel Paneli</h1>
+      ${NEXT && !setup ? '<div class="small" style="background:#eef4f8;border-radius:6px;padding:6px 8px">Site yönetimine girmek için panel kullanıcınızla giriş yapın.</div>' : ''}
       <div class="muted">${setup ? 'İlk kurulum: yönetici hesabını oluşturun. Bu hesapla diğer çalışanları ekleyeceksiniz.' : 'Lux Locations ekip paneli. Kendi kullanıcı adınızla girin.'}</div>
       ${setup ? '<label class="f">Ad soyad<input name="name" required></label>' : ''}
       <label class="f">Kullanıcı adı<input name="username" autocomplete="username" required autocapitalize="none"></label>
@@ -1205,8 +1206,11 @@
   }
 
   /* ---------- başlangıç ---------- */
+  // Site yönetiminden (/admin/) gelindiyse girişten sonra oraya dön (tek giriş)
+  const NEXT = (() => { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/admin\/[\w\-\/.?=&%]*$/.test(n) && !n.includes('..') ? n : ''; })();
   function start() {
     if (!S.user) { asstHide(); return renderLogin(); }
+    if (NEXT) { location.replace(NEXT); return; }
     asstMount();
     S.lastAudit = 0;
     poll();
