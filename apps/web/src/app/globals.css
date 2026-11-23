@@ -164,6 +164,7 @@ footer { margin-top: 90px; padding: 40px 7%; border-top: 1px solid var(--line); 
 .site-footer strong { display: block; margin-bottom: 12px; font: 500 18px var(--font-serif), serif; letter-spacing: 1px; color: #fff; }
 .site-footer p { color: var(--copper-light); font-size: 13px; line-height: 2; }
 .site-footer a:hover { color: #fff; }
+.foot-copy a.foot-team { color: inherit; opacity: .6; text-decoration: none; }
 .foot-copy { margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(241, 201, 165, .3); text-align: center; font-size: 11px; letter-spacing: 1px; color: var(--copper-light); }
 @media (max-width: 1000px) { .partners { grid-template-columns: repeat(3, 1fr); } .foot-grid { grid-template-columns: 1fr; gap: 24px; } }
 
