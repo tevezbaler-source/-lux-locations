@@ -244,7 +244,7 @@
       <div class="row"><h1>Oteller</h1><span class="spacer"></span>
         ${can('booking') ? '<a class="btn primary" href="#/grup/yeni">+ Yeni grup</a>' : ''}
         ${can('hotel') ? '<button id="addHotel">+ Otel ekle</button>' : ''}</div>
-      <div class="muted small">${trDate(from)} – ${trDate(addDays(to, -1))} gecelerinde konaklayan gruplar. ${d.rate ? `Son kur (${trDate(d.rate.rate_date)}): 1 € = ${money(d.rate.eur_try)} TL, 1 $ = ${money(d.rate.usd_try)} TL.` : '<b style="color:var(--err)">Kur girilmemiş: kâr hesapları için <a href="#/kurlar">Kurlar</a> sayfasından günün kurunu girin.</b>'}</div>
+      <div class="muted small">${trDate(from)} – ${trDate(addDays(to, -1))} gecelerinde konaklayan gruplar. ${d.rate ? `Hesapta kullanılan kur (${trDate(d.rate.rate_date)}): 1 € = ${money(d.rate.eur_try)} TL, 1 $ = ${money(d.rate.usd_try)} TL.${d.tcmb && d.tcmb.USD ? ` <a href="#/kurlar">Merkez Bankası (${trDate(d.tcmb.date)}): € ${money(d.tcmb.EUR.sell)}, $ ${money(d.tcmb.USD.sell)}</a>` : ''}` : '<b style="color:var(--err)">Kur girilmemiş: kâr hesapları için <a href="#/kurlar">Kurlar</a> sayfasından günün kurunu girin.</b>'}</div>
       <div class="filters">
         <div class="quick">${pre.map(([l, f, t]) => `<button data-f="${f}" data-t="${t}" class="${f === from && t === to ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label class="f">Başlangıç<input type="date" id="fFrom" value="${from}"></label>
@@ -738,15 +738,31 @@
   }
 
   /* ================= KURLAR ================= */
+  function tcmbBox(t, canFill) {
+    if (!t || t.error || !t.USD) return `<div class="panel small muted">Merkez Bankası kuru şu an alınamadı${t && t.error ? ': ' + esc(t.error) : ''}. Kuru elle girebilirsiniz.</div>`;
+    const row = (c, l) => `<tr><td>${l}</td><td class="num">${money(t[c].buy)}</td><td class="num"><b>${money(t[c].sell)}</b></td><td class="num">${t[c].bn_buy ? money(t[c].bn_buy) : ''}</td><td class="num">${t[c].bn_sell ? money(t[c].bn_sell) : ''}</td></tr>`;
+    return `<div class="panel"><div class="row"><b>Merkez Bankası kuru</b><span class="muted small">${trDate(t.date)} tarihli liste${t.fetched_at ? ', son kontrol ' + esc(t.fetched_at.slice(11)) : ''}${t.stale ? ' (Merkez Bankası şu an yanıt vermiyor, son alınan kur)' : ''}</span><span class="spacer"></span>
+      <button id="tcmbRefresh" title="Merkez Bankası'ndan yeniden sor">Yenile</button>${canFill ? '<button id="tcmbFill">Forma koy</button>' : ''}</div>
+      <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">Döviz alış</th><th class="num">Döviz satış</th><th class="num">Efektif alış</th><th class="num">Efektif satış</th></tr></thead><tbody>
+      ${row('USD', '1 $ (USD)')}${row('EUR', '1 € (EUR)')}${t.GBP ? row('GBP', '1 £ (GBP)') : ''}</tbody></table></div>
+      <div class="small muted">Kâr hesabında döviz satış kuru kullanılır. Merkez Bankası kuru iş günlerinde 15:30 civarı bir kez yayımlar.</div></div>`;
+  }
+
   async function viewFx(main) {
     const d = await api('fx');
+    const t = d.tcmb || {};
     main.innerHTML = `<h1>Kurlar</h1>
-      <div class="muted" style="margin-bottom:12px">Kâr hesabı için günün kurunu buraya girin. Konfirme edilen gruplar o günkü kuru kendilerine sabitler; sonraki kur değişiklikleri onları etkilemez.</div>
+      <div class="muted" style="margin-bottom:12px">Merkez Bankası'nın döviz satış kuru her iş günü kendiliğinden kaydedilir (o gün için kur girilmemişse). İsterseniz kendi kurunuzu da girebilirsiniz; aynı gün için son girilen kur kullanılır. Konfirme edilen gruplar o günkü kuru kendilerine sabitler; sonraki kur değişiklikleri onları etkilemez.</div>
+      ${tcmbBox(t, can('rate') && !S.egitim)}
       ${can('rate') ? `<form class="panel row" id="fxf"><label class="f">Tarih<input type="date" name="rate_date" value="${today()}"></label><label class="f">1 EUR = TL<input name="eur_try" inputmode="decimal" required></label><label class="f">1 USD = TL<input name="usd_try" inputmode="decimal" required></label><label class="f" style="flex:1">Not<input name="note" placeholder="ör. Banka satış kuru"></label><button class="primary">Kaydet</button></form>` : ''}
       <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th class="num">EUR/TL</th><th class="num">USD/TL</th><th class="num">EUR/USD</th><th>Giren</th><th>Not</th></tr></thead><tbody>
       ${d.rates.map((r) => `<tr><td>${trDate(r.rate_date)}</td><td class="num">${money(r.eur_try)}</td><td class="num">${money(r.usd_try)}</td><td class="num">${(r.eur_try / r.usd_try).toFixed(4)}</td><td>${esc(r.user_name || '')}</td><td>${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kur girilmedi.</td></tr>'}
       </tbody></table></div>`;
     const f = qs('#fxf', main);
+    const tb = qs('#tcmbFill', main);
+    if (tb && f) tb.onclick = () => { f.rate_date.value = t.date; f.eur_try.value = t.EUR.sell; f.usd_try.value = t.USD.sell; f.note.value = 'TCMB döviz satış'; f.eur_try.focus(); };
+    const tr = qs('#tcmbRefresh', main);
+    if (tr) tr.onclick = async () => { try { await api('tcmb', { force: 1 }); route(); } catch (er) { toast(er.message, 'err'); } };
     if (f) f.onsubmit = async (e) => { e.preventDefault(); try { await api('fx_save', {}, Object.fromEntries(new FormData(f))); toast('Kur kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
   }
 

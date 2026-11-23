@@ -5,6 +5,7 @@ require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/calc.php';
 require __DIR__ . '/lib/data.php';
+require __DIR__ . '/lib/tcmb.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -63,7 +64,8 @@ try {
                 if ($to <= $from) throw new ApiError('Bitiş tarihi başlangıçtan sonra olmalı.');
                 if (nights_between($from, $to) > 370) throw new ApiError('En fazla 1 yıllık aralık seçilebilir.');
                 $regions = array_column(q_all("SELECT DISTINCT region FROM hotels WHERE active = 1 AND region IS NOT NULL ORDER BY region"), 'region');
-                out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate()]);
+                if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
+                out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates()]);
             case 'hotel':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
                 $days = max(7, min(92, (int)($_GET['days'] ?? 31)));
@@ -88,8 +90,13 @@ try {
                 out($ag);
             case 'agency_names':
                 out(['agencies' => q_all('SELECT id, name, aliases FROM agencies WHERE active = 1 ORDER BY name')]);
+            case 'tcmb':
+                $r = tcmb_rates(!empty($_GET['force']));
+                if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main(), $r); } catch (Throwable $e) {} }
+                out(['tcmb' => $r]);
             case 'fx':
-                out(['rates' => q_all('SELECT f.*, (SELECT user_name FROM audit_log WHERE entity = \'kur\' AND entity_id = f.id ORDER BY id LIMIT 1) AS user_name FROM fx_rates f ORDER BY rate_date DESC, id DESC LIMIT 100')]);
+                if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
+                out(['tcmb' => tcmb_rates(), 'rates' => q_all('SELECT f.*, (SELECT user_name FROM audit_log WHERE entity = \'kur\' AND entity_id = f.id ORDER BY id LIMIT 1) AS user_name FROM fx_rates f ORDER BY rate_date DESC, id DESC LIMIT 100')]);
             case 'contract':
                 $c = contract_for((int)($_GET['hotel_id'] ?? 0), clean_date($_GET['date'] ?? '') ?: date('Y-m-d'));
                 out(['contract' => $c, 'rate' => latest_rate(), 'next_code' => next_code()]);

@@ -104,7 +104,7 @@ function asst_tools(): array {
         $t('grup_listesi', 'Grupları süzerek listeler (konaklama tarihi aralığa değen gruplar).', $obj(['from' => $date('Başlangıç'), 'to' => $date('Bitiş'), 'hotel_id' => $int('Otel'), 'agency_id' => $int('Acente'),
             'status' => ['type' => 'string', 'enum' => array_keys(STATUSES)], 'option_until_before' => $date('Opsiyonu bu tarihe kadar bitenler')])),
         $t('acente_detayi', 'Acente bilgileri (ödeme anlaşması, notlar) ve grupları.', $obj(['agency_id' => $int('Acente id')], ['agency_id'])),
-        $t('kurlar', 'Ofisin girdiği son kurlar.', $obj([])),
+        $t('kurlar', 'Paneldeki son kurlar (ofisin girdiği ve TCMB\'den otomatik alınanlar) ve Merkez Bankası\'nın güncel döviz alış/satış kurları.', $obj([])),
         $t('notlar', 'Not defterindeki notlar.', $obj(['include_done' => ['type' => 'boolean'], 'hotel_id' => $int('Otel'), 'agency_id' => $int('Acente'), 'booking_id' => $int('Grup')])),
         $t('grup_onizle', 'Kaydetmeden bir grubun hesabını ve uyarılarını görür (yeni grup için tüm alanlar, mevcut grup için booking_id + değişen alanlar).', $obj(['booking_id' => $int('Mevcut grup id (değişiklik önizlemesi için)')] + $bookingFields)),
         $t('not_ekle', 'Not defterine not veya hatırlatma ekler (onaysız). Notu ilgili otel, acente veya gruba bağlayabilirsiniz.', $obj(['text' => $str('Not'), 'due_date' => $date('Hatırlatma tarihi'),
@@ -278,7 +278,8 @@ function asst_run_instant(string $name, array $in): array {
             $a['notes_open'] = notes_list(false, ['agency_id' => (int)$a['id']]);
             return $a;
         case 'kurlar':
-            return ['rates' => q_all('SELECT rate_date, eur_try, usd_try, note FROM fx_rates ORDER BY rate_date DESC, id DESC LIMIT 10')];
+            require_once __DIR__ . '/tcmb.php';
+            return ['rates' => q_all('SELECT rate_date, eur_try, usd_try, note FROM fx_rates ORDER BY rate_date DESC, id DESC LIMIT 10'), 'tcmb_guncel' => tcmb_rates()];
         case 'notlar':
             return ['notes' => array_map(fn($n) => array_intersect_key($n, array_flip(['id', 'text', 'due_date', 'done', 'hotel_name', 'agency_name', 'booking_code', 'created_by_name', 'created_at'])),
                 notes_list(!empty($in['include_done']), $in))];

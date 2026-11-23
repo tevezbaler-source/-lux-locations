@@ -4,3 +4,4 @@ data/*.sqlite-*
 data/backups/
 vendor/
 data/asistan-anahtar.php
+data/tcmb.json

@@ -101,6 +101,7 @@ Kullanıcıları listeler; kullanıcı adını, istenirse yeni kullanıcı adın
 | `index.php`, `assets/` | Ekran (tek sayfa uygulama), `assets/guide.js` eğitim metni |
 | `api.php` | Tüm veri işlemleri (JSON) |
 | `lib/assistant.php` | Sesli asistan: araçlar, onay kartları, Claude API çağrısı |
+| `lib/tcmb.php` | Merkez Bankası kuru (today.xml, 30 dk önbellek), günün kurunu otomatik kaydetme |
 | `lib/calc.php` | Alış/satış/free/PP/kur ve kâr hesabı, uyarılar |
 | `lib/data.php` | Kayıt, sürüm kontrolü (aynı anda düzenleme), iptal/devir/taşıma |
 | `lib/sample.php` | Eğitim bölümünün örnek verileri |
