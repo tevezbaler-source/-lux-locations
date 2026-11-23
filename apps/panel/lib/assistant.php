@@ -45,6 +45,7 @@ function asst_set_key(string $key): array {
 function asst_client(): Client {
     $auto = dirname(__DIR__) . '/vendor/autoload.php';
     if (!is_file($auto)) throw new ApiError('Asistan kütüphanesi kurulmamış (vendor klasörü yok). README "Sesli asistan" bölümüne bakın.', 503);
+    require_once __DIR__ . '/compat-anthropic.php';
     require_once $auto;
     $key = asst_api_key();
     if ($key === '') throw new ApiError('Asistan için config.php içine anthropic_api_key yazılmalı.', 503);
