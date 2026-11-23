@@ -932,10 +932,13 @@
     if (mail) {
       main.insertAdjacentHTML('beforeend', `<h2>E-posta gönderimi</h2>
         <form class="panel" id="mailF" style="max-width:640px">
-          <div class="small muted" style="margin-bottom:8px">Otel rezervasyon fişleri bu adresten gider, otelin cevabı da bu adrese gelir. Microsoft 365 için sunucu smtp.office365.com, port 587. Şifre kaydedildikten sonra ekranda gösterilmez.</div>
+          <div class="small muted" style="margin-bottom:8px">Otel rezervasyon fişleri bu adresten gider, otelin cevabı da bu adrese gelir. Microsoft 365 için sunucu smtp.office365.com, port 587. Bu bölümü yalnız yöneticiler görür; şifre güvenlik için ekranda gösterilmez.</div>
           <div class="grid-form">
             <label class="f wide">Gönderen adres<input name="user" inputmode="email" value="${esc(mail.user || '')}" placeholder="reservation@luxlocationstours.com"></label>
-            <label class="f">Şifre ${mail.has_pass ? '(kayıtlı; değişmeyecekse boş)' : ''}<input name="pass" type="password" autocomplete="new-password"></label>
+            ${mail.has_pass
+              ? `<div class="f" id="passOk"><span>Şifre</span><div class="row" style="gap:8px;align-items:center"><span class="badge st-konfirme">✓ Şifre kayıtlı</span><button type="button" class="link" id="passChg">Şifreyi değiştir</button></div></div>
+                 <label class="f" id="passNew" style="display:none">Yeni şifre<input name="pass" type="password" autocomplete="new-password" placeholder="yalnız değiştirecekseniz"></label>`
+              : '<label class="f">Şifre<input name="pass" type="password" autocomplete="new-password"></label>'}
             <label class="f">Gönderen adı<input name="from_name" value="${esc(mail.from_name || '')}"></label>
             <label class="f">Sunucu<input name="host" value="${esc(mail.host || 'smtp.office365.com')}"></label>
             <label class="f">Port<input name="port" inputmode="numeric" value="${mail.port || 587}"></label>
@@ -944,6 +947,11 @@
             <button type="button" id="mailT" ${mail.ready ? '' : 'disabled'}>Deneme e-postası gönder</button><button class="primary">Kaydet</button></div>
         </form>`);
       const mf = qs('#mailF', main);
+      const pc = qs('#passChg', main);
+      if (pc) pc.onclick = () => {
+        if (!confirm('Kayıtlı şifre çalışıyor. Yalnız reservation@ şifresi değiştiyse yenisini girin. Devam edilsin mi?')) return;
+        qs('#passOk', main).style.display = 'none'; qs('#passNew', main).style.display = ''; qs('#passNew input', main).focus();
+      };
       mf.onsubmit = async (e) => { e.preventDefault(); try { await api('mail_settings_save', {}, Object.fromEntries(new FormData(mf))); toast('E-posta ayarı kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
       qs('#mailT', main).onclick = async (e) => {
         e.target.disabled = true; e.target.textContent = 'Gönderiliyor...';
