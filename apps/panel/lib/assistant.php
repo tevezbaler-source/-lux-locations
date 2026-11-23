@@ -301,7 +301,13 @@ function asst_run_instant(string $name, array $in): array {
 }
 
 /** Onay kartı: ne yapılacağını insan diliyle anlatır (henüz hiçbir şey değişmez). */
+const ASST_LABELS = ['name' => 'Ad', 'stars' => 'Yıldız', 'region' => 'Bölge', 'address' => 'Adres', 'contacts' => 'Yetkili', 'notes' => 'Notlar',
+    'append_note' => 'Not ekle', 'active' => 'Aktif', 'date_from' => 'Başlangıç', 'date_to' => 'Bitiş', 'currency' => 'Döviz', 'board' => 'Pansiyon',
+    'sngl' => 'SNGL', 'dbl' => 'DBL', 'twin' => 'TWIN', 'trpl' => 'TRPL', 'quad' => 'QUAD', 'invoiced' => 'Faturalı', 'free_every' => 'Kaç odaya 1 free',
+    'free_type' => 'Free oda tipi', 'contact' => 'Görüşülen', 'note' => 'Not', 'country' => 'Ülke', 'aliases' => 'Diğer yazımlar'];
+
 function asst_describe(string $name, array $in): array {
+    $kv = fn($k, $v) => (ASST_LABELS[$k] ?? $k) . ': ' . (is_bool($v) ? ($v ? 'evet' : 'hayır') : (is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : $v));
     $hn = fn($id) => $id ? (q_val('SELECT name FROM hotels WHERE id = ?', [(int)$id]) ?: "otel #$id") : '?';
     $an = fn($id) => $id ? (q_val('SELECT name FROM agencies WHERE id = ?', [(int)$id]) ?: "acente #$id") : null;
     $bl = function ($id) use ($hn, $an) { $b = booking_get((int)$id); return trim(($b['code'] ?: "#{$b['id']}") . ' · ' . $hn($b['hotel_id']) . ' / ' . ($an($b['agency_id']) ?? '') . ' · ' . $b['check_in']); };
@@ -335,10 +341,10 @@ function asst_describe(string $name, array $in): array {
         case 'grup_tasi': $title = 'Başka otele taşı: ' . $bl($in['booking_id']); $lines[] = 'Yeni otel: ' . $hn($in['hotel_id'] ?? null) . '. Alış yeni otelin sözleşmesinden gelir.'; break;
         case 'grup_sil': $title = 'Grubu sil: ' . $bl($in['booking_id']); $lines[] = 'Yalnız yanlış açılmış kayıtlar için. Kayıt saklanır.'; break;
         case 'kur_gir': $title = 'Kur gir'; $lines[] = ($in['rate_date'] ?? date('Y-m-d')) . ': 1 € = ' . ($in['eur_try'] ?? '?') . ' TL, 1 $ = ' . ($in['usd_try'] ?? '?') . ' TL'; break;
-        case 'otel_kaydet': $title = !empty($in['hotel_id']) ? 'Oteli güncelle: ' . $hn($in['hotel_id']) : 'Yeni otel: ' . ($in['name'] ?? ''); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id'], true)) $lines[] = "$k: " . (is_bool($v) ? ($v ? 'evet' : 'hayır') : $v); break;
-        case 'sozlesme_kaydet': $title = (!empty($in['rate_id']) ? 'Sözleşme fiyatını güncelle: ' : 'Sözleşme fiyatı ekle: ') . $hn($in['hotel_id'] ?? null); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id', 'rate_id'], true)) $lines[] = "$k: " . (is_bool($v) ? ($v ? 'evet' : 'hayır') : $v); break;
+        case 'otel_kaydet': $title = !empty($in['hotel_id']) ? 'Oteli güncelle: ' . $hn($in['hotel_id']) : 'Yeni otel: ' . ($in['name'] ?? ''); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id'], true)) $lines[] = $kv($k, $v); break;
+        case 'sozlesme_kaydet': $title = (!empty($in['rate_id']) ? 'Sözleşme fiyatını güncelle: ' : 'Sözleşme fiyatı ekle: ') . $hn($in['hotel_id'] ?? null); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id', 'rate_id'], true)) $lines[] = $kv($k, $v); break;
         case 'kontenjan_kaydet': $title = 'Kontenjan: ' . $hn($in['hotel_id'] ?? null); $lines[] = ($in['date_from'] ?? '') . ' → ' . ($in['date_to'] ?? '') . ': ' . ($in['rooms'] ?? '') . ' oda'; break;
-        case 'acente_kaydet': $title = !empty($in['agency_id']) ? 'Acenteyi güncelle: ' . $an($in['agency_id']) : 'Yeni acente: ' . ($in['name'] ?? ''); foreach ($in as $k => $v) if ($k !== 'agency_id') $lines[] = "$k: " . (is_bool($v) ? ($v ? 'evet' : 'hayır') : $v); break;
+        case 'acente_kaydet': $title = !empty($in['agency_id']) ? 'Acenteyi güncelle: ' . $an($in['agency_id']) : 'Yeni acente: ' . ($in['name'] ?? ''); foreach ($in as $k => $v) if ($k !== 'agency_id') $lines[] = $kv($k, $v); break;
         default: throw new ApiError("Bilinmeyen araç: $name");
     }
     return ['tool' => $name, 'title' => $title, 'lines' => $lines, 'calc' => $calc];
@@ -452,7 +458,7 @@ function asst_error_reason(Throwable $e): string {
     return $why;
 }
 
-function asst_call(array $messages): array {
+function asst_call(array $messages, ?array $system = null): array {
     $c = lx_config();
     $client = asst_client();
     $model = $c['assistant_model'] ?? 'claude-haiku-5-5';
@@ -461,7 +467,7 @@ function asst_call(array $messages): array {
     $resp = $client->beta->messages->create(...[
         'model' => $model,
         'maxTokens' => 16000,
-        'system' => asst_system(),
+        'system' => $system ?? asst_system(),
         'tools' => asst_tools(),
         'messages' => $messages,
         'outputConfig' => ['effort' => $c['assistant_effort'] ?? 'medium'],
@@ -479,7 +485,9 @@ function asst_loop(array $s, array $done = []): array {
     $texts = [];
     for ($step = 0; $step < ASST_MAX_STEPS; $step++) {
         try {
-            $r = asst_call($s['messages']);
+            // Sistem metni konuşma boyunca sabit kalmalı: değişirse (ör. yeni otel listesi) önceki düşünme blokları geçersiz olur.
+            $s['system'] ??= asst_system();
+            $r = asst_call($s['messages'], $s['system']);
         } catch (ApiError $e) {
             throw $e;
         } catch (Throwable $e) {
