@@ -12,6 +12,7 @@ require __DIR__ . '/lib/talepler.php';
 require __DIR__ . '/lib/gunluk.php';
 require __DIR__ . '/lib/rapor.php';
 require __DIR__ . '/lib/cari.php';
+require __DIR__ . '/lib/site_otel.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -76,6 +77,7 @@ try {
                 if (nights_between($from, $to) > 370) throw new ApiError('En fazla 1 yıllık aralık seçilebilir.');
                 $regions = array_column(q_all("SELECT DISTINCT region FROM hotels WHERE active = 1 AND region IS NOT NULL ORDER BY region"), 'region');
                 if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
+                if (empty($_SESSION['egitim'])) { try { site_hotels_sync(); } catch (Throwable $e) { error_log('site otel esitleme: ' . $e->getMessage()); } }
                 out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
             case 'hotel':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');

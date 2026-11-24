@@ -290,7 +290,9 @@
     if (!flags.length && s.groups) flags.push('<span class="flag ok">Tamam</span>');
     const cls = (s.errors || s.over_nights || s.profit_eur < 0) ? 'f-err' : (s.pending || s.unknown) ? 'f-warn' : s.groups ? 'f-ok' : '';
     const pct = s.max_allotment ? Math.min(100, Math.round(100 * s.max_reserved / s.max_allotment)) : (s.max_reserved ? 100 : 0);
+    const initials = h.name.split(/\s+/).filter((w) => !/^(hotel|otel|the)$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
     return `<div class="hcard ${cls}" data-id="${h.id}" tabindex="0">
+      ${h.cover ? `<div class="cover" style="background-image:url('${esc(encodeURI(h.cover))}')" role="img" aria-label="${esc(h.name)}"></div>` : `<div class="cover none">${esc(initials)}</div>`}
       <div><div class="name">${esc(h.name)} ${h.stars ? `<span class="muted small">${'★'.repeat(+h.stars)}</span>` : ''}</div>
         <div class="meta">${esc(h.region || '')} · ${s.groups} grup</div></div>
       <div><div class="sub"><span>En dolu gece: <b>${s.max_reserved}</b>${s.max_allotment !== null ? ` / ${s.max_allotment} oda` : ' oda (kontenjan yok)'}</span></div>
@@ -333,7 +335,8 @@
     const sum = active.reduce((a, b) => { if (b.calc.profit_eur !== null) { a.e += b.calc.profit_eur; a.u += b.calc.profit_usd; a.t += b.calc.profit_try; } return a; }, { e: 0, u: 0, t: 0 });
 
     main.innerHTML = `
-      <div class="row"><a href="#/">← Oteller</a></div>
+      <div class="row"><a href="#/">← Oteller</a>${h.site_slug ? `<span class="spacer"></span><a href="/oteller/${encodeURIComponent(h.site_slug)}/" target="_blank" rel="noopener">Sitedeki sayfası ↗</a>` : ''}</div>
+      ${h.cover ? `<div class="hhead"><div class="cover" style="background-image:url('${esc(encodeURI(h.cover))}')"></div><div class="small muted">${esc(h.region || '')}${h.address ? '<br>' + esc(h.address) : ''}</div></div>` : ''}
       <div class="row"><h1>${esc(h.name)} ${h.stars ? `<span class="muted small">${'★'.repeat(+h.stars)}</span>` : ''}</h1>${h.active == 1 ? '' : '<span class="badge st-iptal">Pasif</span>'}<span class="spacer"></span>
         ${can('booking') ? `<a class="btn primary" href="#/grup/yeni?otel=${h.id}">+ Bu otele grup</a>` : ''}${can('hotel') ? '<button id="editH">Otel bilgileri</button>' : ''}</div>
       <div class="muted">${esc(h.region || '')}${h.address ? ' · ' + esc(h.address) : ''}${h.email ? ' · ' + esc(h.email) : ''}${h.contacts ? ' · İletişim: ' + esc(h.contacts) : ''}</div>

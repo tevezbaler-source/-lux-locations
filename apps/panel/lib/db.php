@@ -120,7 +120,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         $pdo->exec("CREATE TABLE IF NOT EXISTS $name ($cols)$tail");
     }
     // Sonradan eklenen sütunlar (eski veritabanlarında yoksa eklenir)
-    foreach (['hotels' => ['email' => 'VARCHAR(255) NULL'], 'agencies' => ['invoice_info' => "$txt NULL"]] as $t => $cols) {
+    foreach (['hotels' => ['email' => 'VARCHAR(255) NULL', 'site_slug' => 'VARCHAR(120) NULL', 'cover' => 'VARCHAR(255) NULL'], 'agencies' => ['invoice_info' => "$txt NULL"]] as $t => $cols) {
         foreach ($cols as $c => $def) {
             try { $pdo->query("SELECT $c FROM $t LIMIT 1"); } catch (PDOException $e) { $pdo->exec("ALTER TABLE $t ADD COLUMN $c $def"); }
         }
