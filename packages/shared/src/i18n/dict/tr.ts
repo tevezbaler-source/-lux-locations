@@ -107,5 +107,5 @@ export const tr: Dict = {
     empty: "Otel listemiz çok yakında burada olacak. Şimdiden talebinizi iletebilirsiniz.",
     whatsappMessage: "Merhaba, otel konaklaması için bilgi almak istiyorum.",
   },
-  footer: { contact: "İletişim", follow: "Bizi takip edin", rights: "Tüm hakları saklıdır · TÜRSAB üyesi" },
+  footer: { contact: "İletişim", follow: "Bizi takip edin", rights: "Tüm hakları saklıdır · TÜRSAB üyesi", privacy: "Gizlilik", kvkk: "KVKK ve çerezler" },
 };

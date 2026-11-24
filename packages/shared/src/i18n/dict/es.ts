@@ -157,5 +157,5 @@ export const es: Dict = {
     empty: "Nuestra lista de hoteles estará aquí muy pronto. Ya puede enviarnos su solicitud.",
     whatsappMessage: "Hola, me gustaría recibir información sobre alojamiento en hotel.",
   },
-  footer: { contact: "Contacto", follow: "Síganos", rights: "Todos los derechos reservados · Miembro de TÜRSAB" },
+  footer: { contact: "Contacto", follow: "Síganos", rights: "Todos los derechos reservados · Miembro de TÜRSAB", privacy: "Privacidad", kvkk: "Datos personales y cookies" },
 };

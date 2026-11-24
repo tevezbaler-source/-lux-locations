@@ -76,14 +76,16 @@ function lx_lang_of($path)
 function lx_base_path($path)
 {
     $lang = lx_lang_of($path);
-    if ($lang === 'tr') return $path;
+    if ($lang === 'tr') return $path === '/index.html' ? '/' : $path;
     $rest = substr($path, 3);
-    return $rest === '' ? '/' : $rest;
+    return ($rest === '' || $rest === '/index.html') ? '/' : $rest;
 }
 
+// Sitenin ana dili İngilizce: sunucu / adresini /en/'e yönlendirir, Türkçe ana sayfa /index.html'dedir.
 function lx_page_path($lang, $base)
 {
-    return $lang === 'tr' ? $base : '/' . $lang . $base;
+    if ($lang === 'tr') return $base === '/' ? '/index.html' : $base;
+    return '/' . $lang . $base;
 }
 
 // İstek yolundan diskteki statik HTML dosyası (yoksa null)

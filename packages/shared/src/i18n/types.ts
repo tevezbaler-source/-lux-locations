@@ -81,7 +81,7 @@ export interface Dict {
     ctaButton: string;
   };
   hotels: { title: string; eyebrow: string; empty: string; whatsappMessage: string };
-  footer: { contact: string; follow: string; rights: string };
+  footer: { contact: string; follow: string; rights: string; privacy: string; kvkk: string };
 }
 
 interface Slide {

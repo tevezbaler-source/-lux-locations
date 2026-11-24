@@ -136,3 +136,11 @@ export function JsonLd({ data }: { data: object }) {
     />
   );
 }
+
+// Çerezsiz ziyaret sayacı (lx-content/hit.php): sayfa açılışı ve WhatsApp/telefon/e-posta tıklamaları.
+// Aynı betik otel sayfalarında PHP'den basılır (lx-content/hotels.php, lx_hit_script).
+export const HIT_SCRIPT = String.raw`(function(){var u="/lx-content/hit.php";function s(o){try{var d=JSON.stringify(o);if(navigator.sendBeacon)navigator.sendBeacon(u,d);else fetch(u,{method:"POST",body:d,keepalive:true})}catch(e){}}s({p:location.pathname,r:document.referrer,w:innerWidth});document.addEventListener("click",function(v){var a=v.target&&v.target.closest&&v.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"",e=/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(h)?"wa":h.indexOf("tel:")===0?"tel":h.indexOf("mailto:")===0?"mail":"";if(e)s({p:location.pathname,e:e})},true)})()`;
+
+export function HitCounter() {
+  return <script dangerouslySetInnerHTML={{ __html: HIT_SCRIPT }} />;
+}

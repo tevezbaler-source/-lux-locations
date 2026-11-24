@@ -186,7 +186,7 @@ function lx_hotels_page($shell, $lang, $base, $title, $desc, $image, $main, $ld 
         . '<meta name="description" content="' . $e($desc) . '"/>'
         . '<link rel="canonical" href="' . $e($url) . '"/>';
     foreach (array_keys(lx_langs()) as $l) $meta .= '<link rel="alternate" hreflang="' . $l . '" href="' . $e($abs . lx_page_path($l, $base)) . '"/>';
-    $meta .= '<link rel="alternate" hreflang="x-default" href="' . $e($abs . $base) . '"/>'
+    $meta .= '<link rel="alternate" hreflang="x-default" href="' . $e($abs . lx_page_path('en', $base)) . '"/>'
         . '<meta property="og:type" content="website"/><meta property="og:site_name" content="Lux Locations Tours"/>'
         . '<meta property="og:url" content="' . $e($url) . '"/><meta property="og:locale" content="' . lx_og_locale($lang) . '"/>'
         . '<meta property="og:title" content="' . $e($full) . '"/><meta property="og:description" content="' . $e($desc) . '"/>'
@@ -199,7 +199,13 @@ function lx_hotels_page($shell, $lang, $base, $title, $desc, $image, $main, $ld 
         . '<style>.hotel-inline-rooms{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px;margin:18px 0 24px}.hotel-gallery figure[hidden]{display:none}[dir=rtl] .hotel-breadcrumb span{display:inline-block;transform:scaleX(-1)}</style>';
     $header = lx_fix_lang_links($shell['header'], $base);
     return '<!DOCTYPE html>' . $shell['open'] . '<head>' . $shell['head'] . $meta . '</head><body>'
-        . $header . $main . $shell['footer'] . lx_hotels_script() . '</body></html>';
+        . $header . $main . $shell['footer'] . lx_hotels_script() . lx_hit_script() . '</body></html>';
+}
+
+// Çerezsiz ziyaret sayacı (lx-content/hit.php); sitedeki HIT_SCRIPT ile aynı (apps/web/src/views/seo.tsx)
+function lx_hit_script()
+{
+    return '<script>(function(){var u="/lx-content/hit.php";function s(o){try{var d=JSON.stringify(o);if(navigator.sendBeacon)navigator.sendBeacon(u,d);else fetch(u,{method:"POST",body:d,keepalive:true})}catch(e){}}s({p:location.pathname,r:document.referrer,w:innerWidth});document.addEventListener("click",function(v){var a=v.target&&v.target.closest&&v.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"",e=/^https:\\/\\/(wa\\.me|api\\.whatsapp\\.com)\\//.test(h)?"wa":h.indexOf("tel:")===0?"tel":h.indexOf("mailto:")===0?"mail":"";if(e)s({p:location.pathname,e:e})},true)})()</script>';
 }
 
 function lx_hotels_script()

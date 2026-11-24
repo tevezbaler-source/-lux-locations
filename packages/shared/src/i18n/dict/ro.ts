@@ -157,5 +157,5 @@ export const ro: Dict = {
     empty: "Lista noastră de hoteluri va fi aici în curând. Ne poți trimite deja cererea ta.",
     whatsappMessage: "Bună ziua, aș dori informații despre cazare la hotel.",
   },
-  footer: { contact: "Contact", follow: "Urmărește-ne", rights: "Toate drepturile rezervate · Membru TÜRSAB" },
+  footer: { contact: "Contact", follow: "Urmărește-ne", rights: "Toate drepturile rezervate · Membru TÜRSAB", privacy: "Confidențialitate", kvkk: "Date personale și cookie-uri" },
 };

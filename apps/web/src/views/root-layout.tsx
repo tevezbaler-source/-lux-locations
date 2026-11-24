@@ -1,6 +1,6 @@
 import { DM_Sans, Playfair_Display } from "next/font/google";
 import { localeDir, type Locale } from "@/i18n";
-import { HOME_SEO, JsonLd, organizationJsonLd } from "./seo";
+import { HitCounter, HOME_SEO, JsonLd, organizationJsonLd } from "./seo";
 
 const sans = DM_Sans({
   variable: "--font-sans",
@@ -20,6 +20,7 @@ export function RootHtml({ lang, children }: { lang: Locale; children: React.Rea
       <body>
         <JsonLd data={organizationJsonLd(lang, HOME_SEO[lang].description)} />
         {children}
+        <HitCounter />
       </body>
     </html>
   );

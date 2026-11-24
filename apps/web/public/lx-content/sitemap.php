@@ -33,7 +33,7 @@ echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="h
 foreach ($bases as $base => $mtime) {
     $alts = '';
     foreach ($langs as $l) $alts .= '    <xhtml:link rel="alternate" hreflang="' . $l . '" href="' . $x($abs . lx_page_path($l, $base)) . '"/>' . "\n";
-    $alts .= '    <xhtml:link rel="alternate" hreflang="x-default" href="' . $x($abs . $base) . '"/>' . "\n";
+    $alts .= '    <xhtml:link rel="alternate" hreflang="x-default" href="' . $x($abs . lx_page_path('en', $base)) . '"/>' . "\n";
     $last = date('Y-m-d', max($mtime, $cm));
     foreach ($langs as $l) {
         echo "  <url>\n    <loc>" . $x($abs . lx_page_path($l, $base)) . "</loc>\n    <lastmod>" . $last . "</lastmod>\n" . $alts . "  </url>\n";

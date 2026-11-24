@@ -27,14 +27,21 @@ export function localeDir(lang: Locale) {
   return LOCALES.find((l) => l.code === lang)!.dir;
 }
 
-// "/oteller" → "/en/oteller", "/#tur" → "/en/#tur", "/" → "/en/"
+// Sitenin ana dili İngilizce: sunucu kök adresi (/) /en/'e yönlendirir (Ogün'ün kararı, 2026-11-24).
+// Bu yüzden Türkçe ana sayfa /index.html adresinden açılır.
+export const MAIN_LOCALE: Locale = "en";
+
+// "/oteller" → "/en/oteller", "/#tur" → "/en/#tur", "/" → "/en/"; Türkçede "/" → "/index.html", "/#tur" → "/index.html#tur"
 export function localePath(lang: Locale, path: string): string {
-  return lang === DEFAULT_LOCALE ? path : `/${lang}${path}`;
+  if (lang !== DEFAULT_LOCALE) return `/${lang}${path}`;
+  if (path === "/" || path.startsWith("/#")) return `/index.html${path.slice(1)}`;
+  return path;
 }
 
 // Arama motorları için her sayfanın diğer dillerdeki karşılıkları (hreflang).
+// Dil eşleşmeyen ziyaretçiler (x-default) İngilizce sayfaya gider.
 export function languageAlternates(path: string): Record<string, string> {
-  const map: Record<string, string> = { "x-default": path };
+  const map: Record<string, string> = { "x-default": localePath(MAIN_LOCALE, path) };
   for (const l of LOCALES) map[l.code] = localePath(l.code, path);
   return map;
 }

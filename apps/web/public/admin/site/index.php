@@ -482,6 +482,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
       <a href="?<?= h(http_build_query(array('lang' => $lang, 'page' => $key))) ?>" class="<?= $key === $page ? 'on' : '' ?>"><?= h($key === '/oteller/' ? 'Oteller' : $name) ?></a>
       <?php if ($key === 'genel' || $key === 'talepler') echo '<hr>'; ?>
     <?php endforeach; ?>
+    <hr><a href="istatistik.php">İstatistik</a>
   </nav>
   <main>
   <?php if ($flash): ?><div class="flash <?= $flash[1] ? 'ok' : 'err' ?>"><?= h($flash[0]) ?></div><?php endif; ?>

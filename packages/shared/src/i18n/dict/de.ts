@@ -157,5 +157,5 @@ export const de: Dict = {
     empty: "Unsere Hotelliste finden Sie hier in Kürze. Ihre Anfrage können Sie uns schon jetzt senden.",
     whatsappMessage: "Hallo, ich hätte gern Informationen zu Hotelunterkünften.",
   },
-  footer: { contact: "Kontakt", follow: "Folgen Sie uns", rights: "Alle Rechte vorbehalten · TÜRSAB-Mitglied" },
+  footer: { contact: "Kontakt", follow: "Folgen Sie uns", rights: "Alle Rechte vorbehalten · TÜRSAB-Mitglied", privacy: "Datenschutz", kvkk: "Personenbezogene Daten & Cookies" },
 };
