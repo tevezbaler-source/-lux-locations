@@ -1,56 +1,75 @@
-# Welcome to your Expo app 👋
+# Lux Locations mobil uygulaması (iOS + Android)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo (React Native) ile yazılmış yerli uygulama. İçerik siteden **canlı** gelir: panelde (`/admin/site/`) yapılan değişiklikler uygulamada mağaza güncellemesi gerekmeden görünür.
 
-## Get started
+## İçerik nereden geliyor
 
-1. Install dependencies
+| Uygulamada | Kaynak | Panelden değişince |
+| --- | --- | --- |
+| Oteller listesi ve otel sayfaları | `lx-content/app-api.php` → `data/hotels.json` | Uygulama bir sonraki açılışta / aşağı çekince günceller |
+| Ana sayfa, rezervasyon ve form metinleri | `@lux/shared/i18n` (sitenin dil dosyaları) + paneldeki metin değişiklikleri (`texts`) | Panelde değiştirilen metin uygulamada da değişir |
+| Boğaz turu sayfası | Sitedeki sayfanın kendisi, uygulama içinde (üst menü ve alt bilgi gizli) | Aynen görünür |
+| WhatsApp numarası | Sitenin ana sayfası | Aynen görünür |
 
-   ```bash
-   npm install
-   ```
+- İçerik telefonda saklanır; internet yokken son indirilen içerik gösterilir.
+- Veri adresi değişiklik yoksa `304` döner, uygulama boşuna indirmez.
+- Yeni bir **ekran** ya da **özellik** eklemek mağaza güncellemesi ister; içerik değişikliği istemez.
 
-2. Start the app
+Canlı veri adresi: `https://luxlocationstours.com/lx-content/app-api.php?lang=tr` (11 dil: tr, en, ar, ru, de, fr, es, it, zh, fa, ro).
 
-   ```bash
-   npx expo start
-   ```
+## Ekranlar
 
-In the output, you'll find options to open the app in a
+- `src/app/(tabs)/index.tsx` Keşfet: Boğaz turu, otel şeridi (canlı), rezervasyon türleri, hizmetler
+- `src/app/(tabs)/oteller.tsx` Oteller (canlı, yıldıza göre filtre)
+- `src/app/otel/[slug].tsx` Otel sayfası: fotoğraflar, odalar, olanaklar, konum, WhatsApp teklif
+- `src/app/(tabs)/rezervasyon.tsx` Oda / grup / kongre formu → dolu WhatsApp mesajı (sitedeki formla aynı)
+- `src/app/(tabs)/iletisim.tsx` WhatsApp, arama, e-posta, adres, sosyal medya, gizlilik politikası
+- `src/app/sayfa.tsx` Siteden bir sayfayı uygulama içinde açar
+- `src/app/dil.tsx` Dil seçimi (ilk açılışta telefonun dili)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Siteye yüklenecek dosyalar (bir kez)
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- `apps/web/public/lx-content/app-api.php` → sunucuda `httpdocs/lx-content/app-api.php`
+- `apps/web/public/gizlilik/index.html` → sunucuda `httpdocs/gizlilik/index.html` (mağazaların istediği gizlilik politikası: `https://luxlocationstours.com/gizlilik/`)
 
-## Get a fresh project
+Başka dosyaya dokunulmaz. Yükleme betiği: `scripts/uygulama/Siteye-Yukle.bat` (iki dosyayı yanına aynı klasör yapısıyla koyup çalıştırın, FTP şifresini sorar).
 
-When you're ready, run:
+Mağaza formlarına girilecek metinler: `magaza/magaza-bilgileri.md`.
+
+## Deneme
 
 ```bash
-npm run reset-project
+npm install              # depo kökünde
+npm run mobile           # Expo Go ile QR
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Yerel bir siteyle denemek için: `EXPO_PUBLIC_SITE_URL=http://<bilgisayar-ip>:8099 npm run mobile`.
 
-### Other setup steps
+Android cihazda release derlemesi için kök `CLAUDE.md`'deki **Android derlemesi** adımları (`D:\lx` kopyası).
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Mağazaya gönderme (EAS)
 
-## Learn more
+Windows'ta iPhone derlemesi yapılamadığı için iki mağaza da Expo'nun bulut derlemesiyle (EAS) çıkar. `eas.json` hazır.
 
-To learn more about developing your project with Expo, look at the following resources:
+Gerekenler:
+1. **Expo hesabı** (ücretsiz): https://expo.dev/signup
+2. **Google Play Console** (bir kez 25 $): https://play.google.com/console
+3. **Apple Developer Program** (yıllık 99 $): https://developer.apple.com/programs/enroll/ (şirket adına açılacaksa D-U-N-S numarası gerekir)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Komutlar (`apps/mobile` içinde, bir kez `npm i -g eas-cli` ve `eas login`):
 
-## Join the community
+```bash
+eas init                                   # projeyi Expo hesabına bağlar (app.json'a projectId yazar)
+eas build --platform android --profile preview      # telefona kurulacak deneme APK'sı
+eas build --platform android --profile production   # Play Store için .aab
+eas build --platform ios --profile production       # App Store için (Apple hesabıyla giriş ister, sertifikaları EAS kurar)
+eas submit --platform ios                  # TestFlight / App Store Connect'e yükler
+eas submit --platform android              # Play Console'a yükler (ilk sürüm Play Console'dan elle yüklenmeli)
+```
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Mağaza bilgileri için hazır olanlar:
+- Paket / bundle: `com.luxlocations.app`
+- Gizlilik politikası: `https://luxlocationstours.com/gizlilik/`
+- Veri güvenliği / App Privacy: uygulama veri toplamaz, izleme yapmaz (form WhatsApp mesajı olarak kullanıcının kendi WhatsApp'ından gider)
+- Şifreleme: yalnızca standart HTTPS (`ITSAppUsesNonExemptEncryption: false` ayarlı)
+- iPad: kapalı (yalnızca iPhone ekran görüntüleri yeterli)

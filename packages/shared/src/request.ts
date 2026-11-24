@@ -36,3 +36,38 @@ export function validateRequest(input: RequestInput): string[] {
   }
   return errors;
 }
+
+// Formdan giden talebin bir kopyası sunucuya kaydedilir (admin/talep.php) ve sitedeki yönetim panelinde
+// (/admin/, "Gelen talepler") listelenir. Asıl gönderim yine WhatsApp'tan yapılır; kayıt başarısız olsa da form çalışır.
+export interface RequestCopy {
+  source: 'web' | 'app';
+  /** Paneldeki hizmet: oda, grup, kongre, bogaz, tur … */
+  category: string;
+  lang: string;
+  title: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  travel_date?: string;
+  message: string;
+}
+
+// Formdaki tarih alanlarından paneldeki "Hizmet tarihi" satırı.
+export function travelDate(details: Record<string, string>): string {
+  const from = details.checkin || details.startDate || details.date || '';
+  const to = details.checkout || details.endDate || '';
+  return from && to ? `${from} – ${to}` : from;
+}
+
+export function saveRequestCopy(site: string, copy: RequestCopy): void {
+  try {
+    fetch(`${site}/admin/talep.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(copy),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // ağ yoksa sessizce geç
+  }
+}

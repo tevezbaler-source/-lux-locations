@@ -9,8 +9,8 @@ Site, mobil uygulama ve ekip paneli tek depoda (npm workspaces).
 ## Yapı
 | Klasör | İçerik |
 | --- | --- |
-| `apps/mobile` | Expo (React Native) uygulaması, iOS + Android. Expo Router, `src/app`, `src/components`, `src/constants`, `src/hooks` |
-| `apps/web` | Next.js sitesi (ileride `/panel` ekip paneli). 11 dil: Türkçe kökte (`app/(tr)`), diğerleri `/en/`, `/ar/` … (`app/[lang]`). Sayfa gövdeleri `src/views`, metinler `src/i18n/dict/<dil>.ts` (Türkçe metin `@lux/shared`'den gelir; yeni metin her dil dosyasına eklenmeli, tip kontrolü eksikleri yakalar) |
+| `apps/mobile` | Expo (React Native) uygulaması, iOS + Android. Expo Router, `src/app` (`(tabs)`: Keşfet, Oteller, Rezervasyon, İletişim), `src/lib` (canlı içerik, dil). İçerik siteden canlı gelir: `lx-content/app-api.php`. Ayrıntı ve mağaza adımları `apps/mobile/README.md` |
+| `apps/web` | Next.js sitesi (ileride `/panel` ekip paneli). 11 dil: Türkçe kökte (`app/(tr)`), diğerleri `/en/`, `/ar/` … (`app/[lang]`). Sayfa gövdeleri `src/views`, metinler `packages/shared/src/i18n/dict/<dil>.ts` (site ve uygulama ortak, `@lux/shared/i18n`) (Türkçe metin `@lux/shared`'den gelir; yeni metin her dil dosyasına eklenmeli, tip kontrolü eksikleri yakalar) |
 | `packages/shared` | Ortak içerik: 6 hizmet, şehirler, iletişim, talep formu kuralları, renkler (`@lux/shared`) |
 | `supabase` | `migrations/` (şema) ve `seed.sql` (başlangıç içeriği) |
 

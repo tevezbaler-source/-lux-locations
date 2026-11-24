@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "Lux Locations",
     "slug": "lux-locations",
@@ -9,7 +9,11 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.luxlocations.app",
-      "supportsTablet": true
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.luxlocations.app",
@@ -19,7 +23,9 @@
         "monochromeImage": "./assets/images/monochrome-icon.png",
         "backgroundColor": "#3a5f78"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1,
+      "permissions": []
     },
     "web": {
       "output": "static",
@@ -40,6 +46,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "description": "Lux Locations: İstanbul merkezli özel turlar, oteller, Boğaz turu ve rezervasyon.",
+    "extra": {
+      "eas": {
+        "projectId": "0e2bb231-c5f7-4a27-ae34-71acaa85bf47"
+      }
+    },
+    "owner": "foruzel"
   }
 }

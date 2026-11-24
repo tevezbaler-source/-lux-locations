@@ -1,4 +1,5 @@
-import { ABOUT, BOSPHORUS_DINNER as tour, DESTINATIONS, RESERVATIONS, SERVICES } from "@lux/shared";
+import { ABOUT, BOSPHORUS_DINNER as tour, DESTINATIONS, SERVICES } from "../../catalog";
+import { RESERVATIONS } from "../../reservation";
 import type { Dict } from "../types";
 
 // Türkçe metinler mobil uygulamayla ortak olan @lux/shared içeriğinden gelir.
