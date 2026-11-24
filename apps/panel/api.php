@@ -8,6 +8,7 @@ require __DIR__ . '/lib/data.php';
 require __DIR__ . '/lib/tcmb.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/belge.php';
+require __DIR__ . '/lib/talepler.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -124,6 +125,8 @@ try {
                 out(['users' => q_all('SELECT id, username, name, role, active, created_at, last_login FROM users ORDER BY active DESC, name', [], db_main())]);
             case 'notes':
                 out(['notes' => notes_list(!empty($_GET['all']))]);
+            case 'talepler':
+                out(talep_list((string)($_GET['durum'] ?? ''), (string)($_GET['q'] ?? '')));
             case 'mail_settings':
                 need('users');
                 out(mail_settings_public());
@@ -187,6 +190,8 @@ try {
             out(guests_save($in));
         case 'talep_send':
             out(talep_send($in));
+        case 'talep_update':
+            out(talep_update($in));
         case 'mail_settings_save':
             out(mail_settings_save($in));
         case 'mail_test':

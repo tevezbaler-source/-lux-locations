@@ -11,9 +11,9 @@ const ROLES = [
 
 // Rol => yapabildikleri
 const PERMS = [
-    'yonetici'    => ['booking', 'hotel', 'agency', 'rate', 'users', 'audit', 'unlock', 'backup'],
-    'operasyon'   => ['booking', 'hotel', 'agency', 'rate'],
-    'rezervasyon' => ['booking', 'hotel', 'agency'],
+    'yonetici'    => ['booking', 'hotel', 'agency', 'rate', 'users', 'audit', 'unlock', 'backup', 'talep'],
+    'operasyon'   => ['booking', 'hotel', 'agency', 'rate', 'talep'],
+    'rezervasyon' => ['booking', 'hotel', 'agency', 'talep'],
     'muhasebe'    => ['rate', 'agency'],
 ];
 

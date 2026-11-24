@@ -122,7 +122,7 @@
 
   /* ---------- iskelet ---------- */
   const NAV = [
-    ['', 'Oteller', null], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['notlar', 'Notlar', null],
+    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
@@ -197,6 +197,7 @@
         case '': return await viewGrid(main, params);
         case 'otel': return await viewHotel(main, +parts[1], params);
         case 'grup': return await viewBooking(main, parts[1], params);
+        case 'talepler': return await viewRequests(main, params);
         case 'acenteler': return await viewAgencies(main);
         case 'acente': return await viewAgency(main, +parts[1]);
         case 'kurlar': return await viewFx(main);
@@ -813,6 +814,47 @@
         qs('#rl', main).onclick = () => route();
       }
     } };
+  }
+
+  /* ================= TALEPLER (site ve uygulama formları) ================= */
+  async function viewRequests(main, p) {
+    const d = await api('talepler', { durum: p.durum || '', q: p.q || '' });
+    const set = (o) => go('#/talepler?' + new URLSearchParams(Object.entries(Object.assign({}, p, o)).filter(([, v]) => v)).toString());
+    const total = Object.values(d.counts).reduce((a, b) => a + b, 0);
+    const cls = { new: 'st-opsiyon', review: 'st-konaklamada', quoted: 'st-teklif', confirmed: 'st-konfirme', closed: 'st-kapandi' };
+    const chip = (k, t, n) => `<a class="btn ${(p.durum || '') === k ? 'primary' : ''}" href="#/talepler?${new URLSearchParams(Object.entries({ durum: k, q: p.q || '' }).filter(([, v]) => v))}">${esc(t)} (${n})</a>`;
+    const ro = !can('talep') || S.egitim;
+    const card = (r) => {
+      const digits = (r.phone || '').replace(/\D/g, '');
+      return `<details class="panel" data-id="${esc(r.id)}" ${r.status === 'new' ? 'open' : ''} style="padding:12px 16px;margin-bottom:10px">
+        <summary class="row" style="cursor:pointer"><b>${esc(r.name)}</b><span class="muted">${esc(d.categories[r.category] || r.category)}</span>
+          <span class="spacer"></span><span class="badge ${cls[r.status] || 'st-teklif'}">${esc(d.statuses[r.status] || r.status)}</span><span class="small muted">${trDT(r.at)}</span></summary>
+        <div style="margin-top:10px">
+          <div class="small">${r.phone ? `Telefon: <a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${digits ? ` · <a href="https://wa.me/${digits}" target="_blank" rel="noopener">WhatsApp ↗</a>` : ''}<br>` : ''}
+            ${r.email ? `E-posta: <a href="mailto:${esc(r.email)}">${esc(r.email)}</a><br>` : ''}${r.travel_date ? `Tarih: ${esc(r.travel_date)}` : ''}</div>
+          <div dir="auto" style="white-space:pre-wrap;background:var(--bg,#f4f6f8);border-radius:8px;padding:10px;margin:8px 0">${esc(r.message)}</div>
+          <form class="row tf" style="align-items:flex-end">
+            <label class="f">Durum<select name="status" ${ro ? 'disabled' : ''}>${Object.entries(d.statuses).map(([k, t]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+            <label class="f" style="flex:1;min-width:220px">İç not<textarea name="note" rows="2" maxlength="2000" ${ro ? 'disabled' : ''}>${esc(r.note || '')}</textarea></label>
+            ${ro ? '' : `<input type="hidden" name="id" value="${esc(r.id)}"><input type="hidden" name="revision" value="${r.revision}"><button class="primary">Kaydet</button>`}
+          </form>
+        </div></details>`;
+    };
+    main.innerHTML = `<div class="row"><h1>Talepler</h1><span class="spacer"></span>
+        <form id="tq" class="row"><input name="q" value="${esc(p.q || '')}" placeholder="İsim, telefon, e-posta, mesaj ara"><button>Ara</button></form></div>
+      <div class="muted small" style="margin-bottom:10px">Sitedeki ve uygulamadaki rezervasyon/teklif formlarından gelen istekler. Müşteri aynı talebi WhatsApp'tan da gönderebilir.${S.egitim ? ' <b>Eğitim bölümündesiniz: talepler gerçektir ve burada değiştirilemez.</b>' : ''}</div>
+      ${d.ready ? `<div class="row" style="margin-bottom:12px">${chip('', 'Tümü', total)}${Object.entries(d.statuses).map(([k, t]) => chip(k, t, d.counts[k] || 0)).join('')}</div>
+      ${d.rows.map(card).join('') || '<div class="empty">Bu listede talep yok.</div>'}` : '<div class="empty">Talepler veritabanı bulunamadı. Siteden henüz talep gelmemiş olabilir.</div>'}`;
+    const tq = qs('#tq', main);
+    tq.onsubmit = (e) => { e.preventDefault(); set({ q: tq.q.value.trim() }); };
+    qsa('form.tf', main).forEach((f) => {
+      f.oninput = () => { S.dirty = true; };
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const b = Object.fromEntries(new FormData(f));
+        try { await api('talep_update', {}, { ...b, revision: +b.revision }); S.dirty = false; toast('Talep güncellendi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
+      };
+    });
   }
 
   /* ================= ACENTELER ================= */
