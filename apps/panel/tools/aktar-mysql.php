@@ -16,7 +16,7 @@ $from = lx_open_sqlite($src);
 $to = db_main(); // tabloları da oluşturur
 
 $tables = ['users', 'hotels', 'hotel_rates', 'hotel_allotments', 'agencies', 'bookings', 'booking_rooms',
-    'booking_free', 'booking_services', 'booking_guests', 'booking_extra', 'fx_rates', 'notes', 'mail_log', 'audit_log'];
+    'booking_free', 'booking_services', 'booking_guests', 'booking_extra', 'fx_rates', 'notes', 'mail_log', 'talep_log', 'audit_log'];
 
 foreach ($tables as $t) {
     if ((int)$to->query("SELECT COUNT(*) FROM $t")->fetchColumn() > 0) {

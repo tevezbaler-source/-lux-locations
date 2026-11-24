@@ -127,6 +127,8 @@ try {
                 out(['notes' => notes_list(!empty($_GET['all']))]);
             case 'talepler':
                 out(talep_list((string)($_GET['durum'] ?? ''), (string)($_GET['q'] ?? '')));
+            case 'talep':
+                out(talep_get((string)($_GET['id'] ?? '')));
             case 'mail_settings':
                 need('users');
                 out(mail_settings_public());
@@ -192,6 +194,14 @@ try {
             out(talep_send($in));
         case 'talep_update':
             out(talep_update($in));
+        case 'talep_reply':
+            out(talep_reply($in));
+        case 'talep_link':
+            out(talep_link($in));
+        case 'talep_notify_save':
+            out(talep_notify_save($in));
+        case 'talep_notify_test':
+            out(talep_notify_test());
         case 'mail_settings_save':
             out(mail_settings_save($in));
         case 'mail_test':

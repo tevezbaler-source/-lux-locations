@@ -95,6 +95,8 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     if ($withUsers) {
         $tables['users'] = "id $pk, username VARCHAR(60) NOT NULL UNIQUE, name VARCHAR(120) NOT NULL, pass_hash VARCHAR(255) NOT NULL, role VARCHAR(20) NOT NULL, active INT NOT NULL DEFAULT 1, created_at VARCHAR(19) NULL, last_login VARCHAR(19) NULL";
         $tables['login_attempts'] = "id $pk, ip VARCHAR(64) NOT NULL, username VARCHAR(60) NULL, at VARCHAR(19) NOT NULL";
+        // Site taleplerine yapılan işlemler (e-posta cevabı, gruba çevirme); talepler sitenin kendi veritabanında
+        $tables['talep_log'] = "id $pk, request_id VARCHAR(24) NOT NULL, kind VARCHAR(10) NOT NULL, booking_id INT NULL, to_addr VARCHAR(500) NULL, cc VARCHAR(500) NULL, subject VARCHAR(255) NULL, body $txt NULL, ok INT NOT NULL DEFAULT 1, error VARCHAR(500) NULL, user_id INT NULL, user_name VARCHAR(120) NULL, at VARCHAR(19) NOT NULL";
     }
     $tables['hotels'] = "id $pk, name VARCHAR(160) NOT NULL, stars INT NULL, region VARCHAR(60) NULL, address VARCHAR(255) NULL, contacts $txt NULL, email VARCHAR(255) NULL, notes $txt NULL, active INT NOT NULL DEFAULT 1, $meta";
     $tables['hotel_rates'] = "id $pk, hotel_id INT NOT NULL, date_from VARCHAR(10) NOT NULL, date_to VARCHAR(10) NOT NULL, currency VARCHAR(3) NOT NULL, board VARCHAR(4) NULL, sngl DECIMAL(12,2) NULL, dbl DECIMAL(12,2) NULL, twin DECIMAL(12,2) NULL, trpl DECIMAL(12,2) NULL, quad DECIMAL(12,2) NULL, invoiced INT NOT NULL DEFAULT 1, free_every INT NULL, free_type VARCHAR(5) NULL, contact VARCHAR(120) NULL, note $txt NULL, $meta";
@@ -129,6 +131,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         'ix_srv_book' => 'booking_services(booking_id)',
         'ix_guest_book' => 'booking_guests(booking_id)',
         'ix_mail_book' => 'mail_log(booking_id)',
+        'ix_talep_log' => 'talep_log(request_id)',
         'ix_rates_hotel' => 'hotel_rates(hotel_id, date_from)',
         'ix_allot_hotel' => 'hotel_allotments(hotel_id, date_from)',
         'ix_audit_entity' => 'audit_log(entity, entity_id)',

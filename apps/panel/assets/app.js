@@ -566,6 +566,15 @@
       b = { id: null, hotel_id: p.otel ? +p.otel : (hotels[0] ? hotels[0].id : null), agency_id: null, code: '', check_in: ci, check_out: addDays(ci, 3), board: 'BB', status: 'teklif',
         rooms_reserved: 25, rooms_option: '', option_until: '', hotel_conf_code: '', buy_cur: 'USD', sell_cur: 'EUR', sell_mode: 'room', eur_try: '', usd_try: '', buy_note: '', notes: '',
         rooms: [{ room_type: 'DBL', qty: 25, buy_price: '', sell_price: '' }], free: [], services: [], version: null, history: [] };
+      if (p.talep) {
+        // Talepten gruba: müşteri bilgisi ve mesaj notlara, tarih tanınırsa giriş tarihine
+        const t = await api('talep', { id: p.talep });
+        b.notes = `Talep (${t.category_name}): ${t.name}${t.phone ? ' · ' + t.phone : ''}${t.email ? ' · ' + t.email : ''}${t.travel_date ? '\nTarih: ' + t.travel_date : ''}\n\n${t.message}`;
+        const m = (t.travel_date || '').match(/(\d{4})-(\d{2})-(\d{2})|(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+        const dt = m ? (m[1] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[6]}-${pad(m[5])}-${pad(m[4])}`) : '';
+        if (dt && !isNaN(new Date(dt + 'T00:00:00'))) { b.check_in = dt; b.check_out = addDays(dt, 3); }
+        b.fromTalep = t;
+      }
     } else {
       b = await api('booking', { id: +idPart });
     }
@@ -578,6 +587,7 @@
 
     main.innerHTML = `
       <div class="row"><a href="#/otel/${b.hotel_id || ''}">← ${esc(hotels.find((h) => h.id == b.hotel_id)?.name || 'Oteller')}</a></div>
+      ${b.fromTalep ? `<div class="lockbox" style="background:var(--info-bg);border-color:var(--info)">Bu grup <a href="#/talepler?q=${esc(b.fromTalep.id)}">${esc(b.fromTalep.name)} talebinden</a> açılıyor. Müşteri bilgisi ve mesaj notlara kondu; otel, acente ve odaları seçip kaydedin.</div>` : ''}
       <div class="row"><h1>${isNew ? 'Yeni grup' : `Grup ${esc(b.code || '#' + b.id)}`}</h1>${isNew ? '' : statusBadge(b.status)}${+b.deleted ? '<span class="badge st-iptal">Silinmiş</span>' : ''}</div>
       ${!isNew ? `<div class="small muted">Açan: ${esc(b.created_by_name || (b.created_by ? '—' : 'Örnek veri'))} ${trDT(b.created_at)} · Son değişiklik: ${esc(b.updated_by_name || (b.updated_by ? '—' : 'Örnek veri'))} ${trDT(b.updated_at)}${b.prev ? ` · <a href="#/grup/${b.prev.id}">${esc(b.prev.agency_name)} grubundan devralındı</a>` : ''}${b.next ? ` · <a href="#/grup/${b.next.id}">${esc(b.next.agency_name)} acentesine devredildi</a>` : ''}</div>` : ''}
       <div id="remoteBanner"></div>
@@ -767,6 +777,7 @@
       try {
         const r = await api('booking_save', {}, body);
         S.dirty = false;
+        if (isNew && p.talep) { try { await api('talep_link', {}, { id: p.talep, booking_id: r.id }); } catch (er) { /* bağlantı kurulamasa da grup kayıtlı */ } }
         toast('Grup kaydedildi.', 'ok');
         go('#/grup/' + r.id);
         if (!isNew) route();
@@ -824,25 +835,53 @@
     const cls = { new: 'st-opsiyon', review: 'st-konaklamada', quoted: 'st-teklif', confirmed: 'st-konfirme', closed: 'st-kapandi' };
     const chip = (k, t, n) => `<a class="btn ${(p.durum || '') === k ? 'primary' : ''}" href="#/talepler?${new URLSearchParams(Object.entries({ durum: k, q: p.q || '' }).filter(([, v]) => v))}">${esc(t)} (${n})</a>`;
     const ro = !can('talep') || S.egitim;
+    const logRow = (l) => l.kind === 'grup'
+      ? `<div class="small">✓ <a href="#/grup/${l.booking_id}">Grup ${esc(l.booking_code || '#' + l.booking_id)}</a> açıldı · ${esc(l.user_name || '')} ${trDT(l.at)}</div>`
+      : `<details class="small" style="margin:2px 0"><summary style="cursor:pointer">${+l.ok ? '✓ E-posta gönderildi' : '<span style="color:var(--err)">✗ E-posta gönderilemedi</span>'}: ${esc(l.to_addr)}${l.cc ? ` (CC ${esc(l.cc)})` : ''} · ${esc(l.user_name || '')} ${trDT(l.at)}</summary>
+          <div style="white-space:pre-wrap;margin:4px 0 6px 14px" class="muted"><b>${esc(l.subject || '')}</b>\n${esc(l.body || '')}${l.error ? '\n' + esc(l.error) : ''}</div></details>`;
     const card = (r) => {
       const digits = (r.phone || '').replace(/\D/g, '');
-      return `<details class="panel" data-id="${esc(r.id)}" ${r.status === 'new' ? 'open' : ''} style="padding:12px 16px;margin-bottom:10px">
-        <summary class="row" style="cursor:pointer"><b>${esc(r.name)}</b><span class="muted">${esc(d.categories[r.category] || r.category)}</span>
+      const cat = d.categories[r.category] || r.category;
+      return `<details class="panel" data-id="${esc(r.id)}" ${r.status === 'new' || p.q === r.id ? 'open' : ''} style="padding:12px 16px;margin-bottom:10px">
+        <summary class="row" style="cursor:pointer"><b>${esc(r.name)}</b><span class="muted">${esc(cat)}</span>${r.log.length ? `<span class="small muted">· ${r.log.length} işlem</span>` : ''}
           <span class="spacer"></span><span class="badge ${cls[r.status] || 'st-teklif'}">${esc(d.statuses[r.status] || r.status)}</span><span class="small muted">${trDT(r.at)}</span></summary>
         <div style="margin-top:10px">
           <div class="small">${r.phone ? `Telefon: <a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${digits ? ` · <a href="https://wa.me/${digits}" target="_blank" rel="noopener">WhatsApp ↗</a>` : ''}<br>` : ''}
             ${r.email ? `E-posta: <a href="mailto:${esc(r.email)}">${esc(r.email)}</a><br>` : ''}${r.travel_date ? `Tarih: ${esc(r.travel_date)}` : ''}</div>
-          <div dir="auto" style="white-space:pre-wrap;background:var(--bg,#f4f6f8);border-radius:8px;padding:10px;margin:8px 0">${esc(r.message)}</div>
+          <div dir="auto" style="white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:10px;margin:8px 0">${esc(r.message)}</div>
+          ${r.log.length ? `<div style="margin:6px 0 10px">${r.log.map(logRow).join('')}</div>` : ''}
           <form class="row tf" style="align-items:flex-end">
             <label class="f">Durum<select name="status" ${ro ? 'disabled' : ''}>${Object.entries(d.statuses).map(([k, t]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
             <label class="f" style="flex:1;min-width:220px">İç not<textarea name="note" rows="2" maxlength="2000" ${ro ? 'disabled' : ''}>${esc(r.note || '')}</textarea></label>
             ${ro ? '' : `<input type="hidden" name="id" value="${esc(r.id)}"><input type="hidden" name="revision" value="${r.revision}"><button class="primary">Kaydet</button>`}
           </form>
+          ${ro ? '' : `<div class="row" style="margin-top:10px">
+            <button type="button" data-reply="${esc(r.id)}">✉ E-postayla cevap ver</button>
+            ${can('booking') ? `<a class="btn" href="#/grup/yeni?talep=${esc(r.id)}">→ Gruba çevir</a>` : ''}</div>
+          <form class="panel rf" data-id="${esc(r.id)}" hidden style="margin:10px 0 0">
+            ${d.mail_ready ? '' : '<div class="small" style="color:var(--err);margin-bottom:8px">E-posta gönderimi ayarlı değil (Kullanıcılar → E-posta gönderimi).</div>'}
+            <div class="grid-form">
+              <label class="f">Kime<input name="to" value="${esc(r.email || '')}" placeholder="musteri@ornek.com" required></label>
+              <label class="f">Kopya (CC)<input name="cc" placeholder="İsteğe bağlı, virgülle"></label>
+              <label class="f wide">Konu<input name="subject" value="${esc('Lux Locations · ' + cat)}"></label>
+              <label class="f wide">Mesaj<textarea name="body" rows="7" required>${esc(`Sayın ${r.name},\n\nTalebiniz için teşekkür ederiz.\n\n`)}</textarea></label>
+            </div>
+            <div class="row" style="margin-top:8px"><span class="small muted">reservation@ adresinden gider; gönderilen mail burada kayıtlı kalır.</span><span class="spacer"></span><button type="button" data-cancel>Vazgeç</button><button class="primary">Gönder</button></div>
+          </form>`}
         </div></details>`;
     };
+    const nt = d.notify;
+    const notifyBox = nt ? `<details class="panel" style="padding:12px 16px;margin-bottom:12px" ${p.ayar ? 'open' : ''}>
+        <summary style="cursor:pointer"><b>Yeni talep bildirimi</b> <span class="small muted">· ${nt.recipients.length ? esc(nt.recipients.join(', ')) : 'alıcı yok'}</span></summary>
+        ${nt.sender || nt.recipients.length ? `<form id="nf" class="row" style="margin-top:10px;align-items:flex-end">
+          <label class="f" style="flex:1;min-width:260px">Bildirim gidecek adresler (virgülle, en fazla 10)<input name="recipients" value="${esc(nt.recipients.join(', '))}" required></label>
+          <button class="primary">Kaydet</button><button type="button" id="ntest">Deneme gönder</button></form>
+          <div class="small muted" style="margin-top:6px">Siteden ya da uygulamadan yeni talep gelince bu adreslere haber gider. Gönderen: ${esc(nt.sender || '—')}${nt.ready ? ' · gönderim şifresi kayıtlı' : ''}.</div>`
+        : '<div class="small muted" style="margin-top:8px">Sitede e-posta bildirimi henüz kurulmamış.</div>'}</details>` : '';
     main.innerHTML = `<div class="row"><h1>Talepler</h1><span class="spacer"></span>
         <form id="tq" class="row"><input name="q" value="${esc(p.q || '')}" placeholder="İsim, telefon, e-posta, mesaj ara"><button>Ara</button></form></div>
       <div class="muted small" style="margin-bottom:10px">Sitedeki ve uygulamadaki rezervasyon/teklif formlarından gelen istekler. Müşteri aynı talebi WhatsApp'tan da gönderebilir.${S.egitim ? ' <b>Eğitim bölümündesiniz: talepler gerçektir ve burada değiştirilemez.</b>' : ''}</div>
+      ${S.egitim ? '' : notifyBox}
       ${d.ready ? `<div class="row" style="margin-bottom:12px">${chip('', 'Tümü', total)}${Object.entries(d.statuses).map(([k, t]) => chip(k, t, d.counts[k] || 0)).join('')}</div>
       ${d.rows.map(card).join('') || '<div class="empty">Bu listede talep yok.</div>'}` : '<div class="empty">Talepler veritabanı bulunamadı. Siteden henüz talep gelmemiş olabilir.</div>'}`;
     const tq = qs('#tq', main);
@@ -855,6 +894,28 @@
         try { await api('talep_update', {}, { ...b, revision: +b.revision }); S.dirty = false; toast('Talep güncellendi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
       };
     });
+    qsa('[data-reply]', main).forEach((btn) => btn.onclick = () => {
+      const f = qs(`form.rf[data-id="${btn.dataset.reply}"]`, main);
+      f.hidden = false; btn.hidden = true; (f.to.value ? f.body : f.to).focus();
+      const len = f.body.value.length; f.body.setSelectionRange(len, len);
+    });
+    qsa('form.rf', main).forEach((f) => {
+      f.oninput = () => { S.dirty = true; };
+      qs('[data-cancel]', f).onclick = () => { f.hidden = true; qs(`[data-reply="${f.dataset.id}"]`, main).hidden = false; };
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const b = Object.fromEntries(new FormData(f));
+        if (!(await confirmBox('E-posta gönderilsin mi?', `<b>${esc(b.to)}</b>${b.cc ? ' (CC ' + esc(b.cc) + ')' : ''} adresine "${esc(b.subject)}" konulu mail reservation@ adresinden gidecek.`, 'Gönder'))) return;
+        const sb = qs('button.primary', f); sb.disabled = true; sb.textContent = 'Gönderiliyor…';
+        try { await api('talep_reply', {}, { id: f.dataset.id, ...b }); S.dirty = false; toast('E-posta gönderildi.', 'ok'); route(); }
+        catch (er) { toast(er.message, 'err'); sb.disabled = false; sb.textContent = 'Gönder'; }
+      };
+    });
+    const nf = qs('#nf', main);
+    if (nf) {
+      nf.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('talep_notify_save', {}, { recipients: nf.recipients.value }); toast('Bildirim alıcıları kaydedildi: ' + r.recipients.join(', '), 'ok'); set({ ayar: '1' }); } catch (er) { toast(er.message, 'err'); } };
+      qs('#ntest', main).onclick = async () => { try { const r = await api('talep_notify_test', {}, {}); toast('Deneme maili gönderildi: ' + r.to.join(', '), 'ok'); } catch (er) { toast(er.message, 'err'); } };
+    }
   }
 
   /* ================= ACENTELER ================= */
