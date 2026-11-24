@@ -9,6 +9,7 @@ require __DIR__ . '/lib/tcmb.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/belge.php';
 require __DIR__ . '/lib/talepler.php';
+require __DIR__ . '/lib/gunluk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -58,6 +59,11 @@ try {
 
     $u = current_user();
     if (!$u) out(['error' => 'Oturum kapandı, tekrar giriş yapın.', 'login' => true], 401);
+    // Günlük yedek ve opsiyon hatırlatması: cevap gittikten sonra, günde bir kez
+    register_shutdown_function(function () {
+        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+        try { gunluk_calistir(); } catch (Throwable $e) { error_log('panel gunluk: ' . $e->getMessage()); }
+    });
 
     if ($method === 'GET') {
         switch ($a) {
@@ -68,7 +74,7 @@ try {
                 if (nights_between($from, $to) > 370) throw new ApiError('En fazla 1 yıllık aralık seçilebilir.');
                 $regions = array_column(q_all("SELECT DISTINCT region FROM hotels WHERE active = 1 AND region IS NOT NULL ORDER BY region"), 'region');
                 if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
-                out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates()]);
+                out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
             case 'hotel':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
                 $days = max(7, min(92, (int)($_GET['days'] ?? 31)));
@@ -135,6 +141,22 @@ try {
             case 'assistant_status':
                 require_once __DIR__ . '/lib/assistant.php';
                 out(asst_status());
+            case 'yedekler':
+                need('backup');
+                $files = [];
+                foreach (glob(gunluk_dir() . '/*.gz') ?: [] as $f) $files[] = ['name' => basename($f), 'size' => filesize($f), 'at' => date('Y-m-d H:i', filemtime($f))];
+                usort($files, fn($a, $b) => strcmp($b['name'], $a['name']));
+                out(['files' => $files, 'last' => is_file(gunluk_dir() . '/son-calisma.txt') ? trim(file_get_contents(gunluk_dir() . '/son-calisma.txt')) : null]);
+            case 'yedek_indir':
+                need('backup');
+                $n = (string)($_GET['name'] ?? '');
+                if (!preg_match('/^(panel|talepler)-\d{4}-\d{2}-\d{2}\.(sqlite|json)\.gz$/D', $n) || !is_file(gunluk_dir() . '/' . $n)) throw new ApiError('Yedek bulunamadı.', 404);
+                audit('yedek', null, 'indir', 'Gece yedeği indirildi: ' . $n, null, null, db_main());
+                header('Content-Type: application/gzip');
+                header('Content-Disposition: attachment; filename="' . $n . '"');
+                header('Content-Length: ' . filesize(gunluk_dir() . '/' . $n));
+                readfile(gunluk_dir() . '/' . $n);
+                exit;
             case 'backup':
                 need('backup');
                 if (!empty($_SESSION['egitim'])) throw new ApiError('Eğitim bölümündesiniz; yedek gerçek panelden alınır.');

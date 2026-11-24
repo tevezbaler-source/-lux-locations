@@ -248,6 +248,10 @@
         ${can('booking') ? '<a class="btn primary" href="#/grup/yeni">+ Yeni grup</a>' : ''}
         ${can('hotel') ? '<button id="addHotel">+ Otel ekle</button>' : ''}</div>
       <div class="muted small">${trDate(from)} – ${trDate(addDays(to, -1))} gecelerinde konaklayan gruplar. ${d.rate ? `Hesapta kullanılan kur (${trDate(d.rate.rate_date)}): 1 € = ${money(d.rate.eur_try)} TL, 1 $ = ${money(d.rate.usd_try)} TL.${d.tcmb && d.tcmb.USD ? ` <a href="#/kurlar">Merkez Bankası (${trDate(d.tcmb.date)}): € ${money(d.tcmb.EUR.sell)}, $ ${money(d.tcmb.USD.sell)}</a>` : ''}` : '<b style="color:var(--err)">Kur girilmemiş: kâr hesapları için <a href="#/kurlar">Kurlar</a> sayfasından günün kurunu girin.</b>'}</div>
+      ${(d.options || []).length ? `<div class="panel" style="border-color:var(--warn);background:var(--warn-bg);margin-top:10px"><b>Opsiyon hatırlatma:</b> ${d.options.map((o) => {
+        const late = o.option_until < today(), now = o.option_until === today();
+        return `<a href="#/grup/${o.id}" style="margin-right:12px;white-space:nowrap">${esc(o.hotel)} · ${esc(o.agency || '—')} · ${esc(o.code || '#' + o.id)} <b style="color:${late || now ? 'var(--err)' : 'var(--warn)'}">${late ? 'opsiyon geçti ' + trDate(o.option_until) : now ? 'opsiyon bugün bitiyor' : 'opsiyon yarın bitiyor'}</b></a>`;
+      }).join('')}</div>` : ''}
       <div class="filters">
         <div class="quick">${pre.map(([l, f, t]) => `<button data-f="${f}" data-t="${t}" class="${f === from && t === to ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label class="f">Başlangıç<input type="date" id="fFrom" value="${from}"></label>
@@ -1070,9 +1074,9 @@
   /* ================= İŞLEM KAYDI ================= */
   async function viewAudit(main, p) {
     const d = await api('audit', p);
-    const ents = { grup: 'Grup', otel: 'Otel', acente: 'Acente', sozlesme: 'Sözleşme', kontenjan: 'Kontenjan', kur: 'Kur', user: 'Kullanıcı', yedek: 'Yedek' };
+    const ents = { grup: 'Grup', otel: 'Otel', acente: 'Acente', sozlesme: 'Sözleşme', kontenjan: 'Kontenjan', kur: 'Kur', talep: 'Talep', ayar: 'Ayar', user: 'Kullanıcı', yedek: 'Yedek' };
     const set = (o) => go('#/kayit?' + new URLSearchParams(Object.entries(Object.assign({}, p, o)).filter(([, v]) => v)).toString());
-    main.innerHTML = `<div class="row"><h1>İşlem kaydı</h1><span class="spacer"></span>${can('backup') && !S.egitim ? '<a class="btn" href="api.php?a=backup">Yedek indir (JSON)</a>' : ''}</div>
+    main.innerHTML = `<div class="row"><h1>İşlem kaydı</h1><span class="spacer"></span>${can('backup') && !S.egitim ? '<button id="nightly">Gece yedekleri</button><a class="btn" href="api.php?a=backup">Yedek indir (JSON)</a>' : ''}</div>
       <div class="small muted">Panelde yapılan her ekleme, değişiklik, iptal ve giriş burada; kim, ne zaman, hangi IP'den. Kayıtlar silinemez.${S.egitim ? ' <b>Eğitim bölümündesiniz: burada eğitim kayıtları görünür; giriş-çıkışlar gerçek kayıtta tutulur.</b>' : ''}</div>
       <div class="filters">
         <label class="f">Tür<select id="aE"><option value="">Tümü</option>${Object.entries(ents).map(([k, t]) => `<option value="${k}" ${p.entity === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
@@ -1086,6 +1090,14 @@
     qs('#aE', main).onchange = (e) => set({ entity: e.target.value });
     qs('#aU', main).onchange = (e) => set({ user: e.target.value });
     qs('#aD', main).onchange = (e) => set({ date: e.target.value });
+    const nb = qs('#nightly', main);
+    if (nb) nb.onclick = async () => {
+      try {
+        const y = await api('yedekler');
+        await modal('Gece yedekleri', `<p class="small muted">Panel her gün sabah ilk kullanımda veritabanının ve site taleplerinin sıkıştırılmış kopyasını alır; son 30 gün saklanır. Son çalışma: ${esc(y.last || '—')}.</p>
+          ${y.files.length ? `<div class="tbl-wrap"><table><tbody>${y.files.map((f) => `<tr><td><a href="api.php?a=yedek_indir&name=${encodeURIComponent(f.name)}">${esc(f.name)}</a></td><td class="num">${nf0.format(Math.ceil(f.size / 1024))} KB</td><td class="small muted">${esc(f.at)}</td></tr>`).join('')}</tbody></table></div>` : '<p>Henüz gece yedeği yok; yarın sabah ilk girişte alınır.</p>'}`, { ok: 'Kapat' });
+      } catch (er) { toast(er.message, 'err'); }
+    };
   }
 
   /* ================= HESABIM ================= */
