@@ -1,11 +1,11 @@
 # Lux Locations: SEO guncellemesini luxlocationstours.com'a yukler (2026-11-24).
 #  - Sayfalar (11 dil), gorseller, _next dosyalari, robots.txt, kvkk/, gizlilik/
 #  - lx-content/*.php (site haritasi, sayac, oteller)
-#  - admin/site/istatistik.php (panelde ziyaret istatistigi)
+#  - admin/site/istatistik.php (ziyaret istatistigi) ve admin/site/index.php (Talepler menusu cikti, Istatistik eklendi)
 #  - Canli .htaccess yedeklenir, basina "lux-seo" blogu eklenir (eski blok varsa degistirilir).
 #    Kontrol basarisiz olursa .htaccess otomatik eski haline doner.
-# Dokunmaz: admin/ (istatistik.php haric), lx-content/data, lx-content/uploads, videolar.
-# Dosyalar bu betikle ayni klasorde: site\ (derlenmis site) ve htaccess-seo.txt
+# Dokunmaz: admin/ (admin/site/index.php ve istatistik.php haric), lx-content/data, lx-content/uploads, videolar.
+# Dosyalar bu betikle ayni klasorde: site\ (derlenmis site, apps/web/out) ve htaccess-seo.txt
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $src = $PSScriptRoot
@@ -28,6 +28,7 @@ $files = $all | Where-Object {
   $_ -notmatch '\.mp4$'
 }
 $files += 'admin/site/istatistik.php'
+$files += 'admin/site/index.php'   # site duzenleyici: Talepler menusu kaldirildi (otel panelinde), Istatistik baglantisi eklendi
 $rank = { param($f) if ($f -match '^(assets|_next)/') { 0 } elseif ($f -match '^lx-content/') { 1 } elseif ($f -match '^admin/') { 2 } else { 3 } }
 $files = $files | Sort-Object { & $rank $_ }, { $_ }
 Write-Host ("Yuklenecek dosya: {0}" -f $files.Count)
@@ -87,7 +88,6 @@ try {
   foreach ($f in $files) {
     $n++
     $local = Join-Path $site ($f -replace '/', '\')
-    if ($f -eq 'admin/site/istatistik.php') { $local = Join-Path $src 'istatistik.php' }
     if (-not (Test-Path $local)) { $failed += $f; continue }
     $r = Ftp @('--ftp-create-dirs', '-T', $local, "$base/$root$f")
     if ($r.code -ne 0) { $r = Ftp @('--ftp-create-dirs', '-T', $local, "$base/$root$f") }
