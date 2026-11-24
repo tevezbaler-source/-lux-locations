@@ -111,6 +111,8 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     $tables['booking_extra'] = "booking_id INT NOT NULL PRIMARY KEY, contact_name VARCHAR(160) NULL, room_category VARCHAR(60) NULL, nationality VARCHAR(60) NULL, arrival_info VARCHAR(255) NULL, departure_info VARCHAR(255) NULL, hotel_note $txt NULL, voucher_note $txt NULL, updated_by INT NULL, updated_at VARCHAR(19) NULL";
     $tables['fx_rates'] = "id $pk, rate_date VARCHAR(10) NOT NULL, eur_try DECIMAL(12,4) NOT NULL, usd_try DECIMAL(12,4) NOT NULL, note VARCHAR(255) NULL, $meta";
     $tables['notes'] = "id $pk, text $txt NOT NULL, hotel_id INT NULL, agency_id INT NULL, booking_id INT NULL, due_date VARCHAR(10) NULL, done INT NOT NULL DEFAULT 0, done_by INT NULL, done_at VARCHAR(19) NULL, via VARCHAR(20) NULL, $meta";
+    // Acente tahsilatları (cari hesap)
+    $tables['payments'] = "id $pk, agency_id INT NOT NULL, booking_id INT NULL, pay_date VARCHAR(10) NOT NULL, amount DECIMAL(14,2) NOT NULL, currency VARCHAR(3) NOT NULL, method VARCHAR(30) NULL, note VARCHAR(255) NULL, deleted INT NOT NULL DEFAULT 0, $meta";
     $tables['mail_log'] = "id $pk, booking_id INT NOT NULL, kind VARCHAR(20) NOT NULL, state VARCHAR(20) NULL, to_addr VARCHAR(500) NOT NULL, cc VARCHAR(500) NULL, subject VARCHAR(255) NULL, ok INT NOT NULL DEFAULT 0, error VARCHAR(500) NULL, user_id INT NULL, user_name VARCHAR(120) NULL, at VARCHAR(19) NOT NULL";
     $tables['audit_log'] = "id $pk, at VARCHAR(19) NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, ip VARCHAR(64) NULL, entity VARCHAR(30) NOT NULL, entity_id INT NULL, action VARCHAR(30) NOT NULL, summary VARCHAR(255) NULL, old_json $txt NULL, new_json $txt NULL";
 
@@ -118,7 +120,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         $pdo->exec("CREATE TABLE IF NOT EXISTS $name ($cols)$tail");
     }
     // Sonradan eklenen sütunlar (eski veritabanlarında yoksa eklenir)
-    foreach (['hotels' => ['email' => 'VARCHAR(255) NULL']] as $t => $cols) {
+    foreach (['hotels' => ['email' => 'VARCHAR(255) NULL'], 'agencies' => ['invoice_info' => "$txt NULL"]] as $t => $cols) {
         foreach ($cols as $c => $def) {
             try { $pdo->query("SELECT $c FROM $t LIMIT 1"); } catch (PDOException $e) { $pdo->exec("ALTER TABLE $t ADD COLUMN $c $def"); }
         }
@@ -132,6 +134,7 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         'ix_guest_book' => 'booking_guests(booking_id)',
         'ix_mail_book' => 'mail_log(booking_id)',
         'ix_talep_log' => 'talep_log(request_id)',
+        'ix_pay_agency' => 'payments(agency_id, pay_date)',
         'ix_rates_hotel' => 'hotel_rates(hotel_id, date_from)',
         'ix_allot_hotel' => 'hotel_allotments(hotel_id, date_from)',
         'ix_audit_entity' => 'audit_log(entity, entity_id)',

@@ -462,7 +462,8 @@
         <div class="row" style="margin-bottom:8px"><span class="muted small">İsim listesi, varış-dönüş ve notlar konfirme sonrası da düzenlenebilir. Belgeler yeni sekmede açılır, oradan yazdırıp PDF kaydedebilirsiniz.</span><span class="spacer"></span>
           <a class="btn" href="${docUrl('talep')}" target="_blank" rel="noopener">Otel talep fişi</a>
           ${ed ? '<button type="button" class="btn" id="mSend">Otele e-postayla gönder</button>' : ''}
-          <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a></div>
+          <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a>
+          ${can('cari') ? `<a class="btn" href="fatura.php?id=${b.id}" target="_blank" rel="noopener">Fatura taslağı</a>` : ''}</div>
         <div id="mBox" style="display:none" class="panel"></div>
         ${(b.mail_log || []).length ? `<div class="small" style="margin:0 0 8px"><b>Otele giden e-postalar:</b> ${b.mail_log.map((l) => `<div class="${+l.ok ? '' : 'neg'}">${trDT(l.at)} · ${esc(l.state || '')} · ${esc(l.to_addr)}${l.cc ? ' (cc ' + esc(l.cc) + ')' : ''} · ${esc(l.user_name || '')}${+l.ok ? (l.error ? ' · ' + esc(l.error) : ' · gönderildi') : ' · <b>gönderilemedi:</b> ' + esc(l.error || '')}</div>`).join('')}</div>` : ''}
         <div class="grid-form">
@@ -970,11 +971,11 @@
   async function viewAgencies(main) {
     const d = await api('agencies');
     main.innerHTML = `<div class="row"><h1>Acenteler</h1><span class="spacer"></span>${can('agency') ? '<button class="primary" id="addAg">+ Acente ekle</button>' : ''}</div>
-      <div class="small muted" style="margin-bottom:10px">Satış toplamı: konfirme, konaklamada ve kapanmış grupların net satışı. Tahsilat ve bakiye ikinci aşamada eklenecek.</div>
-      <div class="tbl-wrap"><table><thead><tr><th>Acente</th><th>Ülke</th><th>Diğer yazımlar</th><th>Sorumlu</th><th class="num">Grup</th><th class="num">İptal</th><th class="num">Satış toplamı</th></tr></thead><tbody>
+      <div class="small muted" style="margin-bottom:10px">Satış toplamı: konfirme, konaklamada ve kapanmış grupların net satışı ve ek hizmetleri.${can('cari') ? ' Bakiye: satış eksi tahsilat (acentenin borcu).' : ''}</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Acente</th><th>Ülke</th><th>Diğer yazımlar</th><th>Sorumlu</th><th class="num">Grup</th><th class="num">İptal</th><th class="num">Satış toplamı</th>${can('cari') ? '<th class="num">Bakiye</th>' : ''}</tr></thead><tbody>
       ${d.agencies.map((a) => `<tr class="click" data-id="${a.id}"><td><b>${esc(a.name)}</b>${+a.active ? '' : ' <span class="badge st-iptal">Pasif</span>'}</td><td>${esc(a.country || '')}</td><td class="small">${esc(a.aliases || '')}</td><td>${esc(a.owner || '')}</td><td class="num">${a.bookings}</td>
         <td class="num" style="${a.cancelled ? 'color:var(--err)' : ''}">${a.cancelled}${a.bookings ? ` <span class="muted small">(%${Math.round(100 * a.cancelled / a.bookings)})</span>` : ''}</td>
-        <td class="num">${Object.entries(a.sales).map(([c, v]) => money0(v, c)).join('<br>') || '—'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Henüz acente yok.</td></tr>'}
+        <td class="num">${Object.entries(a.sales).map(([c, v]) => money0(v, c)).join('<br>') || '—'}</td>${can('cari') ? `<td class="num">${Object.entries(a.balance || {}).map(([c, v]) => `<b class="${v > 0 ? 'neg' : ''}">${money0(v, c)}</b>`).join('<br>') || '—'}</td>` : ''}</tr>`).join('') || '<tr><td colspan="8" class="muted">Henüz acente yok.</td></tr>'}
       </tbody></table></div>`;
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/acente/' + r.dataset.id));
     const b = qs('#addAg', main); if (b) b.onclick = () => agencyForm(null, (a) => go('#/acente/' + a.id));
@@ -989,6 +990,7 @@
       <label class="f wide">Diğer yazımlar (virgülle; ör. Soco, Soca)<input name="aliases" value="${esc(v.aliases || '')}"></label>
       <label class="f wide">İletişim<textarea name="contact">${esc(v.contact || '')}</textarea></label>
       <label class="f wide">Ödeme anlaşması<textarea name="payment_terms" placeholder="ör. Aynı gün veya ertesi gün öder, her cuma 1.000 USD">${esc(v.payment_terms || '')}</textarea></label>
+      <label class="f wide">Fatura bilgileri (unvan, adres, vergi no)<textarea name="invoice_info" placeholder="ör. SOCO TRAVEL SRL&#10;Str. Victoriei 12, București, Romania&#10;VAT: RO12345678">${esc(v.invoice_info || '')}</textarea></label>
       <label class="f wide">Notlar<textarea name="notes">${esc(v.notes || '')}</textarea></label>
       ${a ? `<label class="chk"><input type="checkbox" name="active" ${+v.active ? 'checked' : ''}> Aktif</label>` : ''}</div>
       <datalist id="countries"><option>Romanya</option><option>Sırbistan</option><option>Arnavutluk</option><option>Bosna</option><option>Hırvatistan</option><option>Fas</option><option>İran</option><option>Türkiye</option></datalist>`, { ok: 'Kaydet' });
@@ -1007,9 +1009,39 @@
       <h2>Grupları</h2>
       <div class="tbl-wrap"><table><thead><tr><th>Kod</th><th>Otel</th><th>Giriş</th><th>Çıkış</th><th class="num">Oda</th><th>Durum</th><th class="num">Net satış</th><th class="num">Kâr €</th></tr></thead><tbody>
       ${a.bookings.map((b) => `<tr class="click" data-id="${b.id}"><td>${esc(b.code || '')}</td><td>${esc(b.hotel)}</td><td>${trDate(b.check_in)}</td><td>${trDate(b.check_out)}</td><td class="num">${b.rooms}</td><td>${statusBadge(b.status)}</td><td class="num">${money(b.sell_net, b.sell_cur)}</td><td class="num">${money(b.profit_eur)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Grup yok.</td></tr>'}
-      </tbody></table></div>`;
+      </tbody></table></div>
+      ${a.cari ? cariSection(a) : ''}`;
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/grup/' + r.dataset.id));
     const e = qs('#editAg', main); if (e) e.onclick = () => agencyForm(a, () => route());
+    const pf = qs('#payF', main);
+    if (pf) pf.onsubmit = async (ev) => {
+      ev.preventDefault();
+      try { await api('payment_save', {}, Object.assign(Object.fromEntries(new FormData(pf)), { agency_id: a.id })); toast('Tahsilat kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
+    };
+    qsa('[data-delpay]', main).forEach((btn) => btn.onclick = async () => {
+      if (!(await confirmBox('Tahsilatı sil', 'Bu tahsilat kaydı silinecek (işlem kaydında kalır).', 'Sil', true))) return;
+      try { await api('payment_delete', {}, { id: +btn.dataset.delpay }); toast('Tahsilat silindi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
+    });
+  }
+
+  function cariSection(a) {
+    const c = a.cari, T = Object.entries(c.totals);
+    const groups = a.bookings.filter((b) => S.consts.locked.includes(b.status));
+    return `<h2>Cari hesap</h2>
+      <div class="totals">${T.map(([cur, t]) => `<div class="card"><div class="l">Bakiye ${esc(cur)} <span class="muted">(satış ${money0(t.debit)} · tahsilat ${money0(t.credit)})</span></div><div class="v ${t.balance > 0 ? 'neg' : ''}">${money(t.balance, cur)}</div></div>`).join('') || '<div class="muted small">Henüz konfirme grup ya da tahsilat yok.</div>'}</div>
+      ${`<form class="panel row" id="payF" style="align-items:flex-end">
+        <label class="f">Tarih<input type="date" name="pay_date" value="${today()}" required></label>
+        <label class="f">Tutar<input name="amount" inputmode="decimal" required style="width:120px"></label>
+        <label class="f">Para<select name="currency">${S.consts.currencies.map((x) => `<option ${x === (T[0] ? T[0][0] : 'EUR') ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+        <label class="f">Şekli<select name="method">${Object.entries(c.methods).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+        <label class="f">Grup (isteğe bağlı)<select name="booking_id"><option value="">—</option>${groups.map((b) => `<option value="${b.id}">${esc(b.code || '#' + b.id)} · ${esc(b.hotel)} ${trDate(b.check_in)}</option>`).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:160px">Not<input name="note" placeholder="ör. dekont no"></label>
+        <button class="primary">Tahsilat ekle</button></form>`}
+      <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th>Hareket</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Tahsilat</th><th class="num">Bakiye</th><th></th></tr></thead><tbody>
+      ${c.rows.map((r) => `<tr><td class="nowrap">${trDate(r.date)}</td><td>${r.type === 'satis' ? 'Satış' : '<b style="color:var(--ok)">Tahsilat</b>'}${r.booking_id ? ` · <a href="#/grup/${r.booking_id}">${esc(r.code || '#' + r.booking_id)}</a>` : ''}</td><td class="small">${esc(r.text)}</td>
+        <td class="num">${r.debit ? money(r.debit, r.currency) : ''}</td><td class="num">${r.credit ? money(r.credit, r.currency) : ''}</td><td class="num"><b class="${r.balance > 0 ? 'neg' : ''}">${money(r.balance, r.currency)}</b></td>
+        <td>${r.type === 'tahsilat' ? `<button class="link" data-delpay="${r.id}" style="color:var(--err)" title="Sil">✕</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Hareket yok.</td></tr>'}
+      </tbody></table></div>`;
   }
 
   /* ================= KURLAR ================= */
@@ -1118,7 +1150,7 @@
   /* ================= İŞLEM KAYDI ================= */
   async function viewAudit(main, p) {
     const d = await api('audit', p);
-    const ents = { grup: 'Grup', otel: 'Otel', acente: 'Acente', sozlesme: 'Sözleşme', kontenjan: 'Kontenjan', kur: 'Kur', talep: 'Talep', ayar: 'Ayar', user: 'Kullanıcı', yedek: 'Yedek' };
+    const ents = { grup: 'Grup', otel: 'Otel', acente: 'Acente', sozlesme: 'Sözleşme', kontenjan: 'Kontenjan', kur: 'Kur', tahsilat: 'Tahsilat', talep: 'Talep', ayar: 'Ayar', user: 'Kullanıcı', yedek: 'Yedek' };
     const set = (o) => go('#/kayit?' + new URLSearchParams(Object.entries(Object.assign({}, p, o)).filter(([, v]) => v)).toString());
     main.innerHTML = `<div class="row"><h1>İşlem kaydı</h1><span class="spacer"></span>${can('backup') && !S.egitim ? '<button id="nightly">Gece yedekleri</button><a class="btn" href="api.php?a=backup">Yedek indir (JSON)</a>' : ''}</div>
       <div class="small muted">Panelde yapılan her ekleme, değişiklik, iptal ve giriş burada; kim, ne zaman, hangi IP'den. Kayıtlar silinemez.${S.egitim ? ' <b>Eğitim bölümündesiniz: burada eğitim kayıtları görünür; giriş-çıkışlar gerçek kayıtta tutulur.</b>' : ''}</div>

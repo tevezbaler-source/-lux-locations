@@ -11,6 +11,7 @@ require __DIR__ . '/lib/belge.php';
 require __DIR__ . '/lib/talepler.php';
 require __DIR__ . '/lib/gunluk.php';
 require __DIR__ . '/lib/rapor.php';
+require __DIR__ . '/lib/cari.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -85,7 +86,10 @@ try {
             case 'booking':
                 out(booking_full((int)($_GET['id'] ?? 0)));
             case 'agencies':
-                out(['agencies' => agencies_list()]);
+                $list = agencies_list();
+                if (!can('cari')) foreach ($list as &$x) unset($x['balance']);
+                unset($x);
+                out(['agencies' => $list]);
             case 'agency':
                 $id = (int)($_GET['id'] ?? 0);
                 $ag = q_one('SELECT * FROM agencies WHERE id = ?', [$id]);
@@ -97,6 +101,7 @@ try {
                     return ['id' => (int)$b['id'], 'code' => $b['code'], 'hotel' => q_val('SELECT name FROM hotels WHERE id = ?', [$b['hotel_id']]), 'check_in' => $b['check_in'], 'check_out' => $b['check_out'],
                         'status' => $b['status'], 'rooms' => $c['rooms'], 'sell_net' => $c['sell_net'], 'sell_cur' => $c['sell_cur'], 'profit_eur' => $c['profit_eur']];
                 }, $rows);
+                if (can('cari')) $ag['cari'] = cari_agency($id);
                 out($ag);
             case 'agency_names':
                 out(['agencies' => q_all('SELECT id, name, aliases FROM agencies WHERE active = 1 ORDER BY name')]);
@@ -223,6 +228,10 @@ try {
             out(guests_save($in));
         case 'talep_send':
             out(talep_send($in));
+        case 'payment_save':
+            out(payment_save($in));
+        case 'payment_delete':
+            out(payment_delete((int)($in['id'] ?? 0)));
         case 'talep_update':
             out(talep_update($in));
         case 'talep_reply':

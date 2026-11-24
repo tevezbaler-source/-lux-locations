@@ -160,6 +160,7 @@ function agency_save(array $in): array {
         'name' => $name, 'country' => clean_str($in['country'] ?? null, 60), 'aliases' => clean_str($in['aliases'] ?? null),
         'owner' => clean_str($in['owner'] ?? null, 120), 'contact' => clean_str($in['contact'] ?? null, 4000),
         'payment_terms' => clean_str($in['payment_terms'] ?? null, 4000), 'notes' => clean_str($in['notes'] ?? null, 4000),
+        'invoice_info' => clean_str($in['invoice_info'] ?? null, 4000),
         'active' => isset($in['active']) ? (int)!!$in['active'] : 1,
     ];
     $id = clean_int($in['id'] ?? null);
@@ -204,12 +205,19 @@ function agencies_list(): array {
         $c = calc_booking(booking_get((int)$b['id']));
         $cur = $c['sell_cur'];
         $sales[$b['agency_id']][$cur] = ($sales[$b['agency_id']][$cur] ?? 0) + $c['sell_net'];
+        foreach ($c['services'] as $sc => $v) if ($v['sell']) $sales[$b['agency_id']][$sc] = ($sales[$b['agency_id']][$sc] ?? 0) + $v['sell'];
     }
+    $paid = [];
+    foreach (q_all('SELECT agency_id, currency, SUM(amount) AS t FROM payments WHERE deleted = 0 GROUP BY agency_id, currency') as $p) $paid[$p['agency_id']][$p['currency']] = (float)$p['t'];
     foreach ($rows as &$r) {
         $st = $by[$r['id']] ?? [];
         $r['bookings'] = array_sum($st);
         $r['cancelled'] = $st['iptal'] ?? 0;
         $r['sales'] = $sales[$r['id']] ?? new stdClass();
+        $bal = [];
+        foreach ($sales[$r['id']] ?? [] as $cur => $v) $bal[$cur] = $v;
+        foreach ($paid[$r['id']] ?? [] as $cur => $v) $bal[$cur] = ($bal[$cur] ?? 0) - $v;
+        $r['balance'] = array_filter(array_map(fn($v) => round($v, 2), $bal), fn($v) => abs($v) >= 0.01) ?: new stdClass();
     }
     return $rows;
 }
