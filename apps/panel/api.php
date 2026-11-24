@@ -10,6 +10,7 @@ require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/belge.php';
 require __DIR__ . '/lib/talepler.php';
 require __DIR__ . '/lib/gunluk.php';
+require __DIR__ . '/lib/rapor.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -141,6 +142,14 @@ try {
             case 'assistant_status':
                 require_once __DIR__ . '/lib/assistant.php';
                 out(asst_status());
+            case 'rapor':
+            case 'rapor_csv':
+                $from = clean_date($_GET['from'] ?? '') ?: date('Y-01-01');
+                $to = clean_date($_GET['to'] ?? '') ?: date('Y-01-01', strtotime('+1 year'));
+                if ($to <= $from) throw new ApiError('Bitiş tarihi başlangıçtan sonra olmalı.');
+                $kapsam = ($_GET['kapsam'] ?? '') === 'hepsi' ? 'hepsi' : 'satis';
+                if ($a === 'rapor_csv') { need('report'); rapor_csv($from, $to, $kapsam); }
+                out(rapor($from, $to, $kapsam));
             case 'yedekler':
                 need('backup');
                 $files = [];

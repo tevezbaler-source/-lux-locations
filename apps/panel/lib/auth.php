@@ -11,10 +11,10 @@ const ROLES = [
 
 // Rol => yapabildikleri
 const PERMS = [
-    'yonetici'    => ['booking', 'hotel', 'agency', 'rate', 'users', 'audit', 'unlock', 'backup', 'talep'],
-    'operasyon'   => ['booking', 'hotel', 'agency', 'rate', 'talep'],
+    'yonetici'    => ['booking', 'hotel', 'agency', 'rate', 'users', 'audit', 'unlock', 'backup', 'talep', 'report'],
+    'operasyon'   => ['booking', 'hotel', 'agency', 'rate', 'talep', 'report'],
     'rezervasyon' => ['booking', 'hotel', 'agency', 'talep'],
-    'muhasebe'    => ['rate', 'agency'],
+    'muhasebe'    => ['rate', 'agency', 'report'],
 ];
 
 function lx_session_start(): void {

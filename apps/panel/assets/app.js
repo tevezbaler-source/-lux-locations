@@ -122,7 +122,7 @@
 
   /* ---------- iskelet ---------- */
   const NAV = [
-    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['notlar', 'Notlar', null],
+    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
@@ -201,6 +201,7 @@
         case 'acenteler': return await viewAgencies(main);
         case 'acente': return await viewAgency(main, +parts[1]);
         case 'kurlar': return await viewFx(main);
+        case 'raporlar': return await viewReports(main, params);
         case 'notlar': return await viewNotes(main, params);
         case 'otel-yonetimi': return await viewHotelAdmin(main);
         case 'kullanicilar': return await viewUsers(main);
@@ -920,6 +921,49 @@
       nf.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('talep_notify_save', {}, { recipients: nf.recipients.value }); toast('Bildirim alıcıları kaydedildi: ' + r.recipients.join(', '), 'ok'); set({ ayar: '1' }); } catch (er) { toast(er.message, 'err'); } };
       qs('#ntest', main).onclick = async () => { try { const r = await api('talep_notify_test', {}, {}); toast('Deneme maili gönderildi: ' + r.to.join(', '), 'ok'); } catch (er) { toast(er.message, 'err'); } };
     }
+  }
+
+  /* ================= RAPORLAR ================= */
+  async function viewReports(main, p) {
+    const y = new Date().getFullYear(), m = new Date().getMonth();
+    const first = (yy, mm) => iso(new Date(yy, mm, 1));
+    const pre = [['Bu yıl', `${y}-01-01`, `${y + 1}-01-01`], ['Geçen yıl', `${y - 1}-01-01`, `${y}-01-01`], ['Bu ay', first(y, m), first(y, m + 1)],
+      ['Son 12 ay', first(y, m - 11), first(y, m + 1)], ['Gelecek 6 ay', first(y, m), first(y, m + 6)]];
+    const from = p.from || pre[0][1], to = p.to || pre[0][2], kapsam = p.kapsam === 'hepsi' ? 'hepsi' : 'satis';
+    const set = (o) => go('#/raporlar?' + new URLSearchParams(Object.entries(Object.assign({ from, to, kapsam }, o)).filter(([, v]) => v)).toString());
+    main.innerHTML = '<div class="muted">Rapor hazırlanıyor…</div>';
+    const d = await api('rapor', { from, to, kapsam });
+    const T = d.total;
+    const maxP = Math.max(1, ...d.months.map((x) => Math.abs(x.profit_eur)));
+    const monthName = (k) => MON[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
+    const tbl = (rows, label, lnk) => `<div class="tbl-wrap"><table><thead><tr><th>${label}</th><th class="num">Grup</th><th class="num">Oda-gece</th><th class="num">Satış (EUR)</th><th class="num">Kâr (EUR)</th><th class="num">Kâr (TL)</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${lnk ? lnk(r.key) : esc(r.key)}${r.unknown ? ` <span class="small muted">(${r.unknown} hesapsız)</span>` : ''}</td><td class="num">${r.groups}</td><td class="num">${nf0.format(r.room_nights)}</td><td class="num">${money0(r.sell_eur, 'EUR')}</td><td class="num"><b class="${r.profit_eur < 0 ? 'neg' : ''}">${money0(r.profit_eur, 'EUR')}</b></td><td class="num">${money0(r.profit_try, 'TRY')}</td></tr>`).join('') || `<tr><td colspan="6" class="muted">Bu aralıkta grup yok.</td></tr>`}
+      </tbody></table></div>`;
+    main.innerHTML = `<div class="row"><h1>Raporlar</h1><span class="spacer"></span><a class="btn" href="api.php?a=rapor_csv&from=${from}&to=${to}&kapsam=${kapsam}">Excel'e aktar</a></div>
+      <div class="small muted">Giriş tarihi ${trDate(from)} – ${trDate(addDays(to, -1))} arasındaki gruplar. ${kapsam === 'hepsi' ? 'Teklif ve opsiyonlar dahil (iptaller hariç).' : 'Yalnız konfirme, konaklamada ve kapanmış gruplar.'} Kur girilmemiş ya da fiyatı eksik gruplar toplamlara katılmaz.</div>
+      <div class="filters">
+        <div class="quick">${pre.map(([l, f, t]) => `<button data-f="${f}" data-t="${t}" class="${f === from && t === to ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <label class="f">Başlangıç<input type="date" id="rF" value="${from}"></label><label class="f">Bitiş<input type="date" id="rT" value="${to}"></label>
+        <label class="f">Kapsam<select id="rK"><option value="satis">Gerçekleşen satış</option><option value="hepsi" ${kapsam === 'hepsi' ? 'selected' : ''}>Teklif ve opsiyon dahil</option></select></label>
+      </div>
+      <div class="totals">
+        <div class="card"><div class="l">Grup</div><div class="v">${T.groups}</div></div>
+        <div class="card"><div class="l">Oda-gece</div><div class="v">${nf0.format(T.room_nights)}</div></div>
+        <div class="card"><div class="l">Satış EUR</div><div class="v">${money0(T.sell_eur, 'EUR')}</div></div>
+        <div class="card"><div class="l">Kâr EUR</div><div class="v ${T.profit_eur < 0 ? 'neg' : ''}">${money0(T.profit_eur, 'EUR')}</div></div>
+        <div class="card"><div class="l">Kâr TL</div><div class="v">${money0(T.profit_try, 'TRY')}</div></div>
+      </div>
+      ${T.unknown ? `<div class="panel small" style="background:var(--warn-bg)">${T.unknown} grubun kârı hesaplanamadı (fiyat veya kur eksik); toplamlara katılmadı.</div>` : ''}
+      <h2>Aylara göre</h2>
+      ${d.months.length ? `<div class="panel">${d.months.map((x) => `<div class="row" style="gap:8px;margin:3px 0"><span style="width:80px" class="small">${monthName(x.key)}</span>
+        <span style="flex:1;max-width:520px;background:var(--bg);border-radius:4px;height:16px;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;border-radius:4px;width:${Math.round(100 * Math.abs(x.profit_eur) / maxP)}%;background:${x.profit_eur < 0 ? 'var(--err)' : 'var(--brand)'}"></span></span>
+        <span class="small" style="width:110px;text-align:right"><b>${money0(x.profit_eur, 'EUR')}</b></span><span class="small muted">${x.groups} grup · ${nf0.format(x.room_nights)} oda-gece</span></div>`).join('')}</div>` : ''}
+      ${tbl(d.months, 'Ay', monthName)}
+      <h2>Acentelere göre</h2>${tbl(d.agencies, 'Acente')}
+      <h2>Otellere göre</h2>${tbl(d.hotels, 'Otel')}`;
+    qsa('.quick button', main).forEach((b) => b.onclick = () => set({ from: b.dataset.f, to: b.dataset.t }));
+    const chg = () => set({ from: qs('#rF', main).value, to: qs('#rT', main).value, kapsam: qs('#rK', main).value });
+    ['#rF', '#rT', '#rK'].forEach((sel) => qs(sel, main).onchange = chg);
   }
 
   /* ================= ACENTELER ================= */
