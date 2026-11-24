@@ -84,6 +84,58 @@
       if (onOpen) onOpen(bg);
     });
   }
+  /* ---------- yazarken öneri listesi ---------- */
+  const normTr = (t) => String(t || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i');
+  // input altında, yazdıkça süzülen liste. items: [{label, html?, ...}], onPick(item)
+  function suggestBox(input, getItems, onPick, { showAllOnFocus = true, max = 12 } = {}) {
+    const wrap = input.parentElement; wrap.classList.add('sugg-wrap');
+    const ul = document.createElement('ul'); ul.className = 'sugg'; ul.hidden = true; ul.setAttribute('role', 'listbox');
+    wrap.appendChild(ul);
+    input.setAttribute('autocomplete', 'off');
+    let shown = [], idx = -1;
+    const render = () => {
+      const q = normTr(input.value.trim());
+      if (!q && !showAllOnFocus) { ul.hidden = true; return; }
+      const all = getItems() || [];
+      const t1 = [], t2 = [], t3 = [];
+      all.forEach((it) => { const n = normTr(it.label); if (!q || n.startsWith(q)) t1.push(it); else if (n.split(/\s+/).some((w) => w.startsWith(q))) t2.push(it); else if (n.includes(q)) t3.push(it); });
+      shown = t1.concat(t2, t3).slice(0, max); idx = -1;
+      ul.innerHTML = shown.map((it, i) => `<li role="option" data-i="${i}">${it.html || esc(it.label)}</li>`).join('');
+      ul.hidden = !shown.length;
+    };
+    const pick = (i) => { const it = shown[i]; if (!it) return; input.value = it.label; ul.hidden = true; onPick(it); };
+    const mark = () => qsa('li', ul).forEach((li, i) => li.classList.toggle('on', i === idx));
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => setTimeout(() => { ul.hidden = true; }, 150));
+    input.addEventListener('keydown', (e) => {
+      if (ul.hidden) return;
+      if (e.key === 'ArrowDown') { idx = Math.min(shown.length - 1, idx + 1); mark(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { idx = Math.max(0, idx - 1); mark(); e.preventDefault(); }
+      else if (e.key === 'Enter' && idx >= 0) { pick(idx); e.preventDefault(); e.stopPropagation(); }
+      else if (e.key === 'Escape') { ul.hidden = true; e.stopPropagation(); }
+    });
+    ul.addEventListener('mousedown', (e) => { const li = e.target.closest('li'); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
+    return { refresh: render };
+  }
+  // Otel seçim kutularını yazarak arananabilir yapar (select gizlenir, değeri korunur).
+  function hotelCombo(root) {
+    qsa('select[name="hotel_id"]', root).forEach((sel) => {
+      if (sel.dataset.combo || sel.disabled) return;
+      sel.dataset.combo = '1';
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.placeholder = 'Otel adını yazın…';
+      inp.value = sel.value ? (sel.selectedOptions[0]?.textContent || '') : '';
+      sel.hidden = true; sel.after(inp);
+      const items = () => [...sel.options].filter((o) => o.value).map((o) => ({ label: o.textContent, value: o.value }));
+      suggestBox(inp, items, (it) => { sel.value = it.value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+      inp.addEventListener('change', () => {
+        const hit = items().find((it) => normTr(it.label) === normTr(inp.value.trim()));
+        if (hit) { if (sel.value !== hit.value) { sel.value = hit.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }
+        else inp.value = sel.value ? (sel.selectedOptions[0]?.textContent || '') : '';
+      });
+    });
+  }
   const confirmBox = (title, text, ok = 'Evet', danger = false) => modal(title, `<p>${text}</p>`, { ok, danger }).then((v) => v !== null);
 
   /* ---------- oturum ---------- */
@@ -407,13 +459,33 @@
       <label class="f wide">İletişim kişileri (ad, telefon)<textarea name="contacts">${esc(v.contacts || '')}</textarea></label>
       <label class="f wide">Notlar<textarea name="notes">${esc(v.notes || '')}</textarea></label>
       ${h ? `<label class="chk"><input type="checkbox" name="active" ${+v.active ? 'checked' : ''}> Aktif (pasif oteller ızgarada görünmez)</label>` : ''}
-      </div><datalist id="regions"><option>Laleli</option><option>Sultanahmet</option><option>Taksim</option><option>Bakırköy</option><option>Şişli</option><option>Şehir dışı</option></datalist>`, { ok: 'Kaydet' });
+      ${h ? '' : '<input type="hidden" name="site_slug" value=""><div class="small muted wide" id="hnHint" style="grid-column:1/-1"></div>'}
+      </div><datalist id="regions"><option>Laleli</option><option>Sultanahmet</option><option>Taksim</option><option>Bakırköy</option><option>Şişli</option><option>Şehir dışı</option></datalist>`, { ok: 'Kaydet', onOpen: h ? null : (bg) => hotelNameSuggest(bg) });
     if (!r) return;
     try {
       const saved = await api('hotel_save', {}, Object.assign({}, r, h ? { id: h.id, version: h.version } : {}));
       toast('Otel kaydedildi.', 'ok');
       if (after) after(); else go('#/otel/' + saved.id);
     } catch (e) { toast(e.message, 'err'); }
+  }
+
+  // Yeni otel formu: adı yazarken sitedeki ve paneldeki oteller çıkar; sitedeki seçilirse bilgiler dolar.
+  function hotelNameSuggest(bg) {
+    const name = qs('[name="name"]', bg), hint = qs('#hnHint', bg), slug = qs('[name="site_slug"]', bg);
+    let list = [];
+    const sb = suggestBox(name, () => list.map((x) => ({ ...x, label: x.name,
+      html: `${x.cover ? `<span class="th" style="background-image:url('${esc(encodeURI(x.cover))}')"></span>` : '<span class="th"></span>'}<span class="nm">${esc(x.name)}${x.stars ? ` <span class="muted">${'★'.repeat(+x.stars)}</span>` : ''}<br><span class="small muted">${esc(x.region || '')}${x.panel_id ? ' · <b>panelde var</b>' : x.site ? ' · sitede' : ''}</span></span>` })), (it) => {
+      slug.value = '';
+      if (it.panel_id) { hint.innerHTML = `"${esc(it.name)}" panelde zaten var. <a href="#/otel/${it.panel_id}" class="go-h">Otelin sayfasını aç</a>`; return; }
+      slug.value = it.slug || '';
+      if (it.stars) qs('[name="stars"]', bg).value = String(it.stars);
+      if (it.region) qs('[name="region"]', bg).value = it.region;
+      if (it.address) qs('[name="address"]', bg).value = it.address;
+      hint.textContent = 'Sitedeki otel seçildi: yıldız, bölge, adres ve kapak fotoğrafı siteden alındı. E-posta ve iletişim bilgisini ekleyip kaydedin.';
+    });
+    name.addEventListener('input', () => { slug.value = ''; hint.textContent = ''; });
+    hint.addEventListener('click', (e) => { if (e.target.closest('.go-h')) { const x = qs('[data-x="0"]', bg); if (x) x.click(); } });
+    api('hotel_names').then((r) => { list = r.hotels || []; if (document.activeElement === name) sb.refresh(); }).catch(() => {});
   }
 
   async function rateForm(h, r = null, after) {
@@ -732,6 +804,7 @@
         <div class="warns">${c.warnings.length ? c.warnings.map((w) => `<div class="w ${w.level}">${esc(w.msg)}</div>`).join('') : '<div class="w info" style="background:var(--ok-bg);color:var(--ok)">Uyarı yok. Hesap tutarlı.</div>'}</div>`;
     }
 
+    hotelCombo(form);
     form.addEventListener('input', schedule);
     form.addEventListener('change', (e) => {
       if (e.target.name === 'sell_mode') {
@@ -815,7 +888,8 @@
     };
     const bm = qs('#btnMove', main); if (bm) bm.onclick = async () => {
       const r = await modal('Başka otele taşı', `<p class="small">Grup yeni otele geçer; alış fiyatları yeni otelin sözleşmesinden yeniden yüklenir, otel konfirme kodu silinir.</p>
-        <label class="f">Yeni otel<select name="hotel_id">${hotels.filter((h) => h.id != b.hotel_id && +h.active).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label>`, { ok: 'Taşı' });
+        <label class="f">Yeni otel<select name="hotel_id"><option value="">—</option>${hotels.filter((h) => h.id != b.hotel_id && +h.active).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label>`, { ok: 'Taşı', onOpen: hotelCombo });
+      if (r && !r.hotel_id) { toast('Yeni oteli seçin.', 'err'); return; }
       if (!r) return;
       try { await api('booking_move', {}, { id: b.id, version: b.version, hotel_id: r.hotel_id }); S.dirty = false; toast('Grup taşındı. Alışı kontrol edin.', 'ok'); route(); } catch (e) { toast(e.message, 'err'); }
     };
@@ -1230,6 +1304,7 @@
       </div><div class="row" style="margin-top:10px"><button class="primary">Notu ekle</button></div></form>
       <div class="notes">${d.notes.map(noteRow).join('') || '<div class="empty">Açık not yok.</div>'}</div>`;
     const f = qs('#nf', main);
+    hotelCombo(f);
     f.onsubmit = async (e) => { e.preventDefault(); try { await api('note_save', {}, Object.fromEntries(new FormData(f))); toast('Not eklendi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
     qsa('.note input[type=checkbox]', main).forEach((c) => c.onchange = async () => {
       try { await api('note_done', {}, { id: +c.dataset.id, done: c.checked }); route(); } catch (er) { toast(er.message, 'err'); c.checked = !c.checked; }

@@ -11,6 +11,40 @@ function site_hotels_path(): string {
     return $root . '/lx-content/data/hotels.json';
 }
 
+/** Sitedeki oteller, panel alanlarına çevrilmiş hâliyle (slug, name, stars, region, address, cover). */
+function site_hotels_list(): array {
+    $f = site_hotels_path();
+    if (!is_file($f)) return [];
+    $list = json_decode((string)file_get_contents($f), true);
+    if (!is_array($list)) return [];
+    $out = [];
+    foreach ($list as $s) {
+        if (!is_array($s) || empty($s['slug']) || empty($s['name'])) continue;
+        $cover = (string)($s['cover'] ?? '');
+        if ($cover !== '' && !preg_match('~^(/|https://)~', $cover)) $cover = '/' . ltrim($cover, '/');
+        $cityParts = array_values(array_filter(array_map('trim', explode('·', (string)($s['city']['tr'] ?? '')))));
+        $out[] = ['slug' => (string)$s['slug'], 'name' => mb_substr((string)$s['name'], 0, 160), 'stars' => (int)($s['stars'] ?? 0) ?: null,
+            'region' => $cityParts ? mb_substr($cityParts[0], 0, 60) : null, 'address' => clean_str($s['address'] ?? null), 'cover' => $cover ?: null];
+    }
+    return $out;
+}
+
+/** "Otel ekle" formundaki öneriler: sitedeki oteller + paneldeki oteller (panelde olanlar id ile). */
+function hotel_name_suggestions(): array {
+    $panel = q_all('SELECT id, name, stars, region, site_slug, cover FROM hotels ORDER BY name');
+    $bySlug = []; $byName = [];
+    foreach ($panel as $h) { if ($h['site_slug']) $bySlug[$h['site_slug']] = $h; $byName[norm_name($h['name'])] = $h; }
+    $out = []; $used = [];
+    foreach (site_hotels_list() as $s) {
+        $h = $bySlug[$s['slug']] ?? $byName[norm_name($s['name'])] ?? null;
+        if ($h) $used[$h['id']] = true;
+        $out[] = $s + ['site' => true, 'panel_id' => $h['id'] ?? null];
+    }
+    foreach ($panel as $h) if (empty($used[$h['id']])) $out[] = ['name' => $h['name'], 'stars' => $h['stars'], 'region' => $h['region'], 'cover' => $h['cover'], 'site' => false, 'panel_id' => $h['id']];
+    usort($out, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+    return $out;
+}
+
 /** hotels.json değiştiyse (ya da $zorla) eşitler. Yalnız gerçek veritabanında çalışır. */
 function site_hotels_sync(bool $zorla = false): ?array {
     $f = site_hotels_path();

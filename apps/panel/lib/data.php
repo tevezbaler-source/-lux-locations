@@ -77,6 +77,14 @@ function hotel_save(array $in): array {
     } else {
         $dup = q_one('SELECT id FROM hotels WHERE LOWER(name) = LOWER(?)', [$name]);
         if ($dup) throw new ApiError("\"$name\" adında bir otel zaten var.");
+        // Sitedeki bir otel seçildiyse siteye bağla ve kapak görselini al
+        $slug = clean_str($in['site_slug'] ?? null, 160);
+        if ($slug && function_exists('site_hotels_list')) {
+            foreach (site_hotels_list() as $s) if ($s['slug'] === $slug) {
+                if (!q_one('SELECT id FROM hotels WHERE site_slug = ?', [$slug])) { $data['site_slug'] = $slug; $data['cover'] = $s['cover']; }
+                break;
+            }
+        }
         $id = insert_row('hotels', $data + stamp_new());
         audit('otel', $id, 'ekle', "Otel eklendi: $name", null, $data);
     }

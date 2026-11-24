@@ -83,6 +83,8 @@ try {
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
                 $days = max(7, min(92, (int)($_GET['days'] ?? 31)));
                 out(hotel_detail((int)($_GET['id'] ?? 0), $from, date_add_days($from, $days)) + ['from' => $from, 'days' => $days]);
+            case 'hotel_names':
+                out(['hotels' => hotel_name_suggestions()]);
             case 'hotels':
                 out(['hotels' => q_all('SELECT id, name, stars, region, active FROM hotels ORDER BY active DESC, name')]);
             case 'booking':
