@@ -325,7 +325,7 @@ textarea { border-radius: 14px; }
 .card, .panel, .tbl-wrap, .cal-wrap, .empty { border-radius: var(--r); border-color: transparent; box-shadow: 0 6px 20px rgba(20,40,60,.06); }
 .totals .card { padding: 14px 18px; }
 .hcard { border-radius: 22px; border: 0; border-top: 0; box-shadow: 0 8px 24px rgba(20,40,60,.08); overflow: hidden; position: relative; }
-.hcard::before { content: ''; position: absolute; top: 12px; right: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); box-shadow: 0 0 0 3px rgba(255,255,255,.85); z-index: 2; }
+.hcard:is(.f-ok, .f-warn, .f-err)::before { content: ''; position: absolute; top: 12px; right: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); box-shadow: 0 0 0 3px rgba(255,255,255,.85); z-index: 2; }
 .hcard.f-ok::before { background: var(--ok); } .hcard.f-warn::before { background: var(--st-opsiyon); } .hcard.f-err::before { background: var(--err); }
 .hcard:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(20,40,60,.14); }
 .hcard { transition: transform .15s, box-shadow .15s; }
