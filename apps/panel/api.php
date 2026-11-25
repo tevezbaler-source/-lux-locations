@@ -79,7 +79,9 @@ try {
                 $regions = array_column(q_all("SELECT DISTINCT region FROM hotels WHERE active = 1 AND region IS NOT NULL ORDER BY region"), 'region');
                 if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
                 if (empty($_SESSION['egitim'])) { try { site_hotels_sync(); } catch (Throwable $e) { error_log('site otel esitleme: ' . $e->getMessage()); } }
-                out(['hotels' => hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? '')), 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
+                $hiddenN = 0;
+                $gridH = hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? ''), !empty($_GET['hepsi']), $hiddenN);
+                out(['hotels' => $gridH, 'hidden' => $hiddenN, 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
             case 'hotel':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
                 $days = max(7, min(92, (int)($_GET['days'] ?? 31)));
@@ -226,6 +228,8 @@ try {
         case 'booking_delete':
             booking_delete((int)$in['id']);
             out(['ok' => true]);
+        case 'hotels_import':
+            out(hotels_import((string)($in['text'] ?? ''), !empty($in['commit']), (array)($in['add_similar'] ?? [])));
         case 'hotel_save':
             out(hotel_save($in));
         case 'rate_save':

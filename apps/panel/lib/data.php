@@ -630,12 +630,17 @@ function hotel_bookings(int $hotelId, string $from, string $to): array {
     return $out;
 }
 
-function hotels_grid(string $from, string $to, string $search = '', string $region = ''): array {
+function hotels_grid(string $from, string $to, string $search = '', string $region = '', bool $all = false, ?int &$hidden = null): array {
     $hotels = q_all('SELECT * FROM hotels WHERE active = 1');
     usort($hotels, fn($a, $b) => strcmp(norm_name($a['name']), norm_name($b['name'])));
+    // Kalabalık olmasın: aranmıyorsa yalnız sitede sayfası, grubu ya da sözleşmesi olan oteller kart olarak gelir
+    $used = [];
+    foreach (q_all('SELECT DISTINCT hotel_id FROM bookings WHERE deleted = 0 UNION SELECT DISTINCT hotel_id FROM hotel_rates UNION SELECT DISTINCT hotel_id FROM hotel_allotments') as $r) $used[(int)$r['hotel_id']] = true;
+    $hidden = 0;
     $res = [];
     foreach ($hotels as $h) {
         if ($region !== '' && ($h['region'] ?? '') !== $region) continue;
+        if (!$all && $search === '' && empty($h['site_slug']) && empty($used[(int)$h['id']])) { $hidden++; continue; }
         $books = hotel_bookings((int)$h['id'], $from, $to);
         if ($search !== '') {
             $s = norm_name($search);
@@ -773,4 +778,100 @@ function mail_test(): array {
     mail_send([$s['user']], [], 'Otel paneli e-posta testi', '<p style="font-family:Arial">Otel panelinden gönderilen deneme e-postası. Bu e-postayı görüyorsanız ayar doğru.</p>', 'Otel panelinden gönderilen deneme e-postası. Bu e-postayı görüyorsanız ayar doğru.');
     audit('ayar', null, 'eposta', 'E-posta testi gönderildi: ' . $s['user'], null, null, db_main());
     return ['ok' => true, 'to' => $s['user']];
+}
+
+/* ---------- Toplu otel ekleme (Excel / liste yapıştırarak) ---------- */
+const HOTEL_ACRONYMS = ['AHC', 'CVK', 'MLS', 'TNR', 'NL', 'MB', 'BVS', 'ESS', 'SPA', 'CIP', 'TEM', 'II', 'III'];
+
+/** "GRAND MARCELLO HOTEL" -> "Grand Marcello Hotel"; kısaltmalar büyük kalır. */
+function hotel_pretty_name(string $s): string {
+    $s = trim(preg_replace('/\s+/u', ' ', $s));
+    if ($s === '' || mb_strtoupper($s, 'UTF-8') !== $s) return $s; // zaten karışık yazılmışsa dokunma
+    $words = explode(' ', $s);
+    foreach ($words as &$w) {
+        if (in_array($w, HOTEL_ACRONYMS, true) || preg_match('/^\d/', $w)) continue;
+        $lower = mb_strtolower(strtr($w, ['I' => 'ı', 'İ' => 'i']), 'UTF-8');
+        $first = mb_substr($lower, 0, 1, 'UTF-8');
+        $first = $first === 'i' ? 'İ' : ($first === 'ı' ? 'I' : mb_strtoupper($first, 'UTF-8'));
+        $w = $first . mb_substr($lower, 1, null, 'UTF-8');
+    }
+    unset($w);
+    $out = implode(' ', $words);
+    // Yabancı adlarda "ı" yerine "i" (Istanbul, Hilton, Taksim...): yalnız Türkçe karakter içermeyen kelimelerde
+    return preg_replace_callback('/\S+/u', fn($m) => preg_match('/[şğüöçŞĞÜÖÇ]/u', $m[0]) ? $m[0] : strtr($m[0], ['ı' => 'i', 'İ' => 'I']), $out);
+}
+
+/** Karşılaştırma için kelime kümesi (otel, hotel, the, istanbul gibi dolgu kelimeler hariç). */
+function hotel_tokens(string $s): array {
+    $s = mb_strtolower(strtr($s, ['İ' => 'i', 'I' => 'ı']), 'UTF-8');
+    $s = strtr($s, ['ı' => 'i', 'ş' => 's', 'ğ' => 'g', 'ü' => 'u', 'ö' => 'o', 'ç' => 'c', 'â' => 'a', '&' => ' ']);
+    $t = preg_split('/[^a-z0-9]+/', $s, -1, PREG_SPLIT_NO_EMPTY);
+    $t = array_values(array_unique(array_diff($t, ['hotel', 'hotels', 'otel', 'oteli', 'the', 'istanbul', 'and', 'by'])));
+    sort($t);
+    return $t;
+}
+
+/** Yapıştırılan listeyi çözer; $commit false ise yalnız önizleme döner. $addSimilar: benzer olsa da eklenecek adlar. */
+function hotels_import(string $text, bool $commit, array $addSimilar = []): array {
+    need('hotel');
+    $panel = q_all('SELECT id, name, region FROM hotels');
+    $pt = array_map(fn($h) => ['id' => (int)$h['id'], 'name' => $h['name'], 'region' => $h['region'], 't' => hotel_tokens($h['name']), 'n' => norm_name($h['name'])], $panel);
+    $new = []; $exists = []; $similar = []; $seen = [];
+    foreach (preg_split('/\r\n|\r|\n/', $text) as $line) {
+        $raw = trim(explode("\t", $line)[0]);
+        if ($raw === '' || preg_match('/^(otel|hotel)\s*ad/iu', $raw)) continue;
+        $name = mb_substr(hotel_pretty_name($raw), 0, 160);
+        $n = norm_name($name); $t = hotel_tokens($name);
+        if ($n === '' || isset($seen[$n])) continue;
+        $seen[$n] = true;
+        $hit = null; $near = null; $nearScore = 0;
+        foreach ($pt as $p) {
+            if ($p['n'] === $n || ($t && $p['t'] === $t)) { $hit = $p; break; }
+            if (!$t || !$p['t']) continue;
+            $sub = !array_diff($p['t'], $t) || !array_diff($t, $p['t']);
+            $score = count(array_intersect($p['t'], $t)) / max(count($p['t']), count($t));
+            if ($sub && $score >= 0.5 && $score > $nearScore) { $near = $p; $nearScore = $score; }
+        }
+        if ($hit) $exists[] = ['name' => $name, 'panel' => $hit['name'], 'id' => $hit['id']];
+        elseif ($near) {
+            // Muhtemelen aynı otel: liste adı paneldekinin kısaltması, ya da fazlası yalnız semt / "deluxe, spa, suites" gibi ekler
+            $extra = array_diff($t, $near['t']);
+            $same = !$extra || !array_diff($extra, ['laleli', 'yenikapi', 'beyazit', 'topkapi', 'sultanahmet', 'taksim', 'sirkeci', 'old', 'city', 'deluxe', 'spa', 'suites', 'suite', 'boutique']);
+            $rg = hotel_region_guess($name);
+            if ($same && $rg && $near['region'] && norm_name($rg) !== norm_name($near['region'])) $same = false; // başka semtteki şube
+            $similar[] = ['name' => $name, 'panel' => $near['name'], 'id' => $near['id'], 'same' => $same];
+        }
+        else $new[] = $name;
+    }
+    $res = ['new' => $new, 'exists' => $exists, 'similar' => $similar, 'added' => 0];
+    if (!$commit) return $res;
+    $want = array_flip(array_map('strval', $addSimilar));
+    $toAdd = array_merge($new, array_values(array_filter(array_column($similar, 'name'), fn($x) => isset($want[$x]))));
+    if (count($toAdd) > 1000) throw new ApiError('Tek seferde en fazla 1000 otel eklenebilir.');
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        foreach ($toAdd as $name) {
+            if (q_one('SELECT id FROM hotels WHERE LOWER(name) = LOWER(?)', [$name])) continue;
+            insert_row('hotels', ['name' => $name, 'stars' => null, 'region' => hotel_region_guess($name), 'active' => 1] + stamp_new());
+            $res['added']++;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+    if ($res['added']) audit('otel', null, 'ekle', "Toplu otel ekleme: {$res['added']} otel eklendi", null, ['oteller' => $toAdd]);
+    return $res;
+}
+
+/** Otel adındaki semt ipucundan bölge tahmini. */
+function hotel_region_guess(string $name): ?string {
+    $t = ' ' . implode(' ', hotel_tokens($name)) . ' ';
+    $map = ['laleli' => 'Laleli', 'taksim' => 'Taksim', 'taxim' => 'Taksim', 'sultanahmet' => 'Sultanahmet', 'sirkeci' => 'Sirkeci', 'beyazit' => 'Beyazıt', 'topkapi' => 'Topkapı',
+        'yenikapi' => 'Yenikapı', 'vatan' => 'Fındıkzade', 'findikzade' => 'Fındıkzade', 'bakirkoy' => 'Bakırköy', 'atakoy' => 'Ataköy', 'merter' => 'Merter', 'sisli' => 'Şişli', 'bomonti' => 'Şişli',
+        'harbiye' => 'Şişli', 'nisantasi' => 'Şişli', 'pera' => 'Beyoğlu', 'beyoglu' => 'Beyoğlu', 'galata' => 'Beyoğlu', 'galataport' => 'Beyoğlu', 'karakoy' => 'Beyoğlu', 'kadikoy' => 'Anadolu yakası',
+        'kozyatagi' => 'Anadolu yakası', 'umraniye' => 'Anadolu yakası', 'kucukyali' => 'Anadolu yakası', 'tuzla' => 'Anadolu yakası', 'airport' => 'Havalimanı', 'arnavutkoy' => 'Havalimanı',
+        'kusadasi' => 'Şehir dışı', 'bursa' => 'Şehir dışı', 'yalova' => 'Şehir dışı', 'silivri' => 'Şehir dışı', 'esenyurt' => 'Avrupa yakası', 'avcilar' => 'Avrupa yakası', 'gunesli' => 'Avrupa yakası',
+        'mahmutbey' => 'Avrupa yakası', 'kayasehir' => 'Avrupa yakası', 'zeytinburnu' => 'Avrupa yakası', 'florya' => 'Avrupa yakası', 'maslak' => 'Avrupa yakası', 'alibeykoy' => 'Avrupa yakası'];
+    foreach ($map as $k => $v) if (str_contains($t, " $k ")) return $v;
+    if (str_contains($t, ' old ') && str_contains($t, ' city ')) return 'Sultanahmet';
+    return null;
 }

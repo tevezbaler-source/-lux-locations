@@ -350,10 +350,10 @@
     const pre = rangePresets();
     const from = p.from || pre[1][1], to = p.to || pre[1][2];
     main.innerHTML = '<div class="muted">Oteller yükleniyor…</div>';
-    const d = await api('grid', { from, to, q: p.q || '', region: p.region || '' });
+    const d = await api('grid', { from, to, q: p.q || '', region: p.region || '', hepsi: p.hepsi || '' });
     const hs = d.hotels;
     const tot = hs.reduce((a, h) => { const s = h.summary; a.g += s.groups; a.e += s.profit_eur; a.u += s.profit_usd; a.t += s.profit_try; a.err += s.errors; a.pend += s.pending; a.unk += s.unknown; return a; }, { g: 0, e: 0, u: 0, t: 0, err: 0, pend: 0, unk: 0 });
-    const setQ = (o) => { const n = Object.assign({ from, to, q: p.q || '', region: p.region || '' }, o); go('#/?' + new URLSearchParams(Object.entries(n).filter(([, v]) => v)).toString()); };
+    const setQ = (o) => { const n = Object.assign({ from, to, q: p.q || '', region: p.region || '', hepsi: p.hepsi || '' }, o); go('#/?' + new URLSearchParams(Object.entries(n).filter(([, v]) => v)).toString()); };
     main.innerHTML = `
       <div class="row"><h1>Oteller</h1><span class="spacer"></span>
         ${can('booking') ? '<a class="btn primary" href="#/grup/yeni">+ Yeni grup</a>' : ''}
@@ -378,6 +378,7 @@
         <div class="card"><div class="l">Hatalı / bekleyen</div><div class="v"><span style="color:var(--err)">${tot.err}</span> / <span style="color:var(--warn)">${tot.pend}</span></div></div>
       </div>
       ${tot.unk ? `<div class="banner">${tot.unk} grubun kârı hesaplanamadı (fiyat veya kur eksik); toplamlara katılmadı.</div>` : ''}
+      ${d.hidden ? `<div class="small muted" style="margin:0 0 10px">Grubu ya da sözleşmesi olmayan ${d.hidden} otel burada gösterilmiyor; "Ara" kutusuna ya da en üstteki aramaya adını yazınca çıkar. <a href="#" id="showAllH">Hepsini göster</a></div>` : (p.hepsi ? '<div class="small muted" style="margin:0 0 10px"><a href="#" id="showUsedH">Yalnız çalışılan otelleri göster</a></div>' : '')}
       ${hs.length ? `<div class="hotels">${hs.map(hotelCard).join('')}</div>` : `<div class="empty">${p.q || p.region ? 'Aramaya uyan otel yok.' : 'Henüz otel yok.' + (can('hotel') ? ' Sağ üstteki <b>+ Otel ekle</b> ile başlayın.' : '')}</div>`}`;
     qsa('.quick button', main).forEach((b) => b.onclick = () => setQ({ from: b.dataset.f, to: b.dataset.t }));
     qs('#fFrom', main).onchange = (e) => setQ({ from: e.target.value });
@@ -385,6 +386,8 @@
     qs('#fReg', main).onchange = (e) => setQ({ region: e.target.value });
     qs('#fQ', main).onkeydown = (e) => { if (e.key === 'Enter') setQ({ q: e.target.value.trim() }); };
     const ah = qs('#addHotel', main); if (ah) ah.onclick = () => hotelForm();
+    const sa = qs('#showAllH', main); if (sa) sa.onclick = (e) => { e.preventDefault(); setQ({ hepsi: '1' }); };
+    const su = qs('#showUsedH', main); if (su) su.onclick = (e) => { e.preventDefault(); setQ({ hepsi: '' }); };
     qsa('.hcard', main).forEach((c) => c.onclick = () => go(`#/otel/${c.dataset.id}?from=${from}`));
     S.view = { onRemote: () => viewGrid(main, p) };
   }
@@ -1277,15 +1280,38 @@
   }
 
   /* ================= OTEL LİSTESİ ================= */
+  async function hotelBulkImport() {
+    const r = await modal('Toplu otel ekle', `<p class="small">Excel'den otel adı sütununu kopyalayıp buraya yapıştırın; her satıra bir otel. Paneldeki otellerle karşılaştırılır, aynı olanlar ikinci kez eklenmez. Önce kontrol listesi gösterilir.</p>
+      <textarea name="text" rows="12" placeholder="GRAND MARCELLO HOTEL&#10;MARMARAY HOTEL YENIKAPI&#10;…" style="width:100%"></textarea>`, { ok: 'Kontrol et' });
+    if (!r || !r.text.trim()) return;
+    let pv;
+    try { pv = await api('hotels_import', {}, { text: r.text, commit: 0 }); } catch (e) { toast(e.message, 'err'); return; }
+    const li = (a) => a.map((x) => `<li>${esc(x)}</li>`).join('');
+    let sims = pv.similar.filter((x) => !x.same).map((x) => x.name);
+    const ok = await modal('Kontrol: toplu otel ekleme', `<div class="small" style="max-height:60vh;overflow:auto">
+      <p><b>${pv.new.length}</b> yeni otel eklenecek, <b>${pv.exists.length}</b> otel zaten panelde${pv.similar.length ? `, <b>${pv.similar.length}</b> otel paneldekine benziyor` : ''}.</p>
+      ${pv.similar.length ? `<h3>Benzer olanlar</h3><p>İşaretli olanlar ayrı otel olarak eklenir. Paneldekiyle aynı otelse işareti kaldırın.</p>${pv.similar.map((x) => `<label class="chk" style="display:flex;gap:6px;margin:3px 0"><input type="checkbox" data-sim="1" value="${esc(x.name)}" ${x.same ? '' : 'checked'}> <span><b>${esc(x.name)}</b> <span class="muted">· panelde: ${esc(x.panel)}</span></span></label>`).join('')}` : ''}
+      ${pv.new.length ? `<details open><summary><b>Eklenecekler (${pv.new.length})</b></summary><ul style="columns:2;margin:6px 0">${li(pv.new)}</ul></details>` : ''}
+      ${pv.exists.length ? `<details><summary>Zaten panelde olanlar (${pv.exists.length})</summary><ul>${pv.exists.map((x) => `<li>${esc(x.name)} <span class="muted">= ${esc(x.panel)}</span></li>`).join('')}</ul></details>` : ''}
+      <p class="muted">Yeni oteller "Otel listesi"nde ve yazarken çıkan önerilerde görünür. "Oteller" sayfasında kart olarak, grup ya da sözleşme girildiğinde çıkar. Bölge, adındaki semtten (Laleli, Taksim…) tahmin edilir.</p></div>`,
+      { ok: 'Ekle', onOpen: (bg) => { bg.querySelector('.modal').style.maxWidth = '760px'; bg.addEventListener('change', () => { sims = qsa('input[data-sim]', bg).filter((c) => c.checked).map((c) => c.value); }); } });
+    if (!ok) return;
+    try {
+      const res = await api('hotels_import', {}, { text: r.text, commit: 1, add_similar: sims });
+      toast(`${res.added} otel eklendi.`, 'ok'); route();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
   async function viewHotelAdmin(main) {
     const d = await api('hotels');
-    main.innerHTML = `<div class="row"><h1>Otel listesi</h1><span class="spacer"></span><button class="primary" id="addH">+ Otel ekle</button></div>
+    main.innerHTML = `<div class="row"><h1>Otel listesi</h1><span class="spacer"></span><button id="bulkH">Toplu ekle (listeden yapıştır)</button><button class="primary" id="addH">+ Otel ekle</button></div>
       <div class="small muted" style="margin-bottom:10px">Pasif oteller ızgarada görünmez ama eski grupları saklanır.</div>
       <div class="row" style="margin-bottom:8px"><input id="hlQ" type="search" placeholder="Otel ya da bölge ara…" style="max-width:340px"><span class="small muted" id="hlN"></span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Otel</th><th>Yıldız</th><th>Bölge</th><th>Durum</th></tr></thead><tbody>
       ${d.hotels.map((h) => `<tr class="click" data-id="${h.id}"><td>${esc(h.name)}</td><td>${h.stars ? '★'.repeat(+h.stars) : ''}</td><td>${esc(h.region || '')}</td><td>${+h.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Henüz otel yok.</td></tr>'}
       </tbody></table></div>`;
     qs('#addH', main).onclick = () => hotelForm();
+    qs('#bulkH', main).onclick = () => hotelBulkImport();
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/otel/' + r.dataset.id));
     tableFilter(qs('#hlQ', main), qs('tbody', main), qs('#hlN', main));
   }
