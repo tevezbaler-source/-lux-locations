@@ -13,6 +13,7 @@ require __DIR__ . '/lib/gunluk.php';
 require __DIR__ . '/lib/rapor.php';
 require __DIR__ . '/lib/cari.php';
 require __DIR__ . '/lib/site_otel.php';
+require __DIR__ . '/lib/oneri.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -108,7 +109,16 @@ try {
                 if (can('cari')) $ag['cari'] = cari_agency($id);
                 out($ag);
             case 'agency_names':
-                out(['agencies' => q_all('SELECT id, name, aliases FROM agencies WHERE active = 1 ORDER BY name')]);
+                out(['agencies' => q_all('SELECT id, name, aliases, country FROM agencies WHERE active = 1 ORDER BY name')]);
+            case 'gecmis':
+                out(['values' => oneri_gecmis((string)($_GET['f'] ?? ''), (int)($_GET['hotel_id'] ?? 0))]);
+            case 'hizmet_fiyat':
+                out(['services' => oneri_hizmetler()]);
+            case 'ara':
+                out(['results' => hizli_ara((string)($_GET['q'] ?? ''))]);
+            case 'talep_acente':
+                need('talep');
+                out(['agency' => talep_acente_eslestir((string)($_GET['name'] ?? ''), (string)($_GET['email'] ?? ''))]);
             case 'tcmb':
                 $r = tcmb_rates(!empty($_GET['force']));
                 if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main(), $r); } catch (Throwable $e) {} }

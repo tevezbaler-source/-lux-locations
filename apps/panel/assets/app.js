@@ -87,7 +87,7 @@
   /* ---------- yazarken öneri listesi ---------- */
   const normTr = (t) => String(t || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i');
   // input altında, yazdıkça süzülen liste. items: [{label, html?, ...}], onPick(item)
-  function suggestBox(input, getItems, onPick, { showAllOnFocus = true, max = 12 } = {}) {
+  function suggestBox(input, getItems, onPick, { showAllOnFocus = true, max = 12, extra = null } = {}) {
     const wrap = input.parentElement; wrap.classList.add('sugg-wrap');
     const ul = document.createElement('ul'); ul.className = 'sugg'; ul.hidden = true; ul.setAttribute('role', 'listbox');
     wrap.appendChild(ul);
@@ -98,8 +98,13 @@
       if (!q && !showAllOnFocus) { ul.hidden = true; return; }
       const all = getItems() || [];
       const t1 = [], t2 = [], t3 = [];
-      all.forEach((it) => { const n = normTr(it.label); if (!q || n.startsWith(q)) t1.push(it); else if (n.split(/\s+/).some((w) => w.startsWith(q))) t2.push(it); else if (n.includes(q)) t3.push(it); });
+      all.forEach((it) => {
+        const n = normTr(it.label), k = normTr(it.label + ' ' + (it.keys || ''));
+        if (!q || n.startsWith(q)) t1.push(it); else if (k.split(/[\s,]+/).some((w) => w.startsWith(q))) t2.push(it); else if (k.includes(q)) t3.push(it);
+      });
       shown = t1.concat(t2, t3).slice(0, max); idx = -1;
+      const ex = extra && q ? extra(input.value.trim(), shown) : null;
+      if (ex) shown.push(ex);
       ul.innerHTML = shown.map((it, i) => `<li role="option" data-i="${i}">${it.html || esc(it.label)}</li>`).join('');
       ul.hidden = !shown.length;
     };
@@ -118,24 +123,49 @@
     ul.addEventListener('mousedown', (e) => { const li = e.target.closest('li'); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
     return { refresh: render };
   }
-  // Otel seçim kutularını yazarak arananabilir yapar (select gizlenir, değeri korunur).
-  function hotelCombo(root) {
-    qsa('select[name="hotel_id"]', root).forEach((sel) => {
+  // Seçim kutularını (select) yazarak aranabilir yapar; select gizlenir, değeri korunur.
+  function selectCombo(root, selector, placeholder, keysOf = null) {
+    qsa(selector, root).forEach((sel) => {
       if (sel.dataset.combo || sel.disabled) return;
       sel.dataset.combo = '1';
       const inp = document.createElement('input');
-      inp.type = 'text'; inp.placeholder = 'Otel adını yazın…';
+      inp.type = 'text'; inp.placeholder = placeholder;
       inp.value = sel.value ? (sel.selectedOptions[0]?.textContent || '') : '';
       sel.hidden = true; sel.after(inp);
-      const items = () => [...sel.options].filter((o) => o.value).map((o) => ({ label: o.textContent, value: o.value }));
-      suggestBox(inp, items, (it) => { sel.value = it.value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+      const items = () => [...sel.options].filter((o) => o.value).map((o) => ({ label: o.textContent, value: o.value, keys: keysOf ? keysOf(o.value) : (o.dataset.keys || '') }));
+      const set = (v) => { if (sel.value !== v) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); } };
+      suggestBox(inp, items, (it) => set(it.value));
       inp.addEventListener('change', () => {
-        const hit = items().find((it) => normTr(it.label) === normTr(inp.value.trim()));
-        if (hit) { if (sel.value !== hit.value) { sel.value = hit.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }
-        else inp.value = sel.value ? (sel.selectedOptions[0]?.textContent || '') : '';
+        const t = normTr(inp.value.trim());
+        if (!t && sel.querySelector('option[value=""]')) { set(''); return; }
+        const hit = items().find((it) => normTr(it.label) === t);
+        if (hit) set(hit.value); else inp.value = sel.value ? (sel.selectedOptions[0]?.textContent || '') : '';
       });
     });
   }
+  const hotelCombo = (root) => selectCombo(root, 'select[name="hotel_id"]', 'Otel adını yazın…');
+  const agencyCombo = (root, list = []) => selectCombo(root, 'select[name="agency_id"]', 'Acente adını yazın…', (id) => { const a = list.find((x) => x.id == id); return a ? `${a.aliases || ''} ${a.country || ''}` : ''; });
+  // Tablo satırlarını yazdıkça süzer
+  function tableFilter(input, tbody, countEl = null) {
+    const run = () => {
+      const q = normTr(input.value.trim()); let n = 0;
+      qsa('tr', tbody).forEach((tr) => { const ok = !q || normTr(tr.textContent).includes(q); tr.hidden = !ok; if (ok) n++; });
+      if (countEl) countEl.textContent = q ? `${n} sonuç` : '';
+    };
+    input.addEventListener('input', run);
+  }
+  // Daha önce yazılanlardan öneri (sunucudan bir kez alınır)
+  const _gecmis = {};
+  function historySuggest(input, field, params = {}, defaults = []) {
+    if (!input || input.disabled) return;
+    const key = field + JSON.stringify(params);
+    let list = _gecmis[key] || [];
+    const items = () => { const seen = new Set(); return list.concat(defaults).filter((v) => { const k = normTr(v); if (seen.has(k)) return false; seen.add(k); return true; }).map((v) => ({ label: v })); };
+    suggestBox(input, items, () => input.dispatchEvent(new Event('input', { bubbles: true })), { max: 10 });
+    if (!_gecmis[key]) api('gecmis', { f: field, ...params }).then((r) => { list = _gecmis[key] = r.values || []; }).catch(() => {});
+  }
+  const COUNTRIES = ['Romanya', 'Moldova', 'Bulgaristan', 'Sırbistan', 'Kosova', 'Arnavutluk', 'Kuzey Makedonya', 'Karadağ', 'Bosna-Hersek', 'Hırvatistan', 'Slovenya', 'Macaristan', 'Yunanistan', 'Polonya', 'Çekya', 'Slovakya', 'Ukrayna', 'Rusya', 'Belarus', 'Gürcistan', 'Azerbaycan', 'Kazakistan', 'Özbekistan', 'Türkmenistan', 'Kırgızistan', 'İran', 'Irak', 'Suriye', 'Lübnan', 'Ürdün', 'İsrail', 'Filistin', 'Mısır', 'Libya', 'Tunus', 'Cezayir', 'Fas', 'Suudi Arabistan', 'Birleşik Arap Emirlikleri', 'Katar', 'Kuveyt', 'Bahreyn', 'Umman', 'Yemen', 'Pakistan', 'Afganistan', 'Hindistan', 'Bangladeş', 'Endonezya', 'Malezya', 'Çin', 'Japonya', 'Güney Kore', 'Almanya', 'Fransa', 'İtalya', 'İspanya', 'Portekiz', 'Hollanda', 'Belçika', 'Avusturya', 'İsviçre', 'İngiltere', 'İrlanda', 'İsveç', 'Norveç', 'Danimarka', 'Finlandiya', 'Litvanya', 'Letonya', 'Estonya', 'ABD', 'Kanada', 'Meksika', 'Brezilya', 'Arjantin', 'Avustralya', 'Güney Afrika', 'Nijerya', 'Kıbrıs', 'KKTC', 'Türkiye'];
+
   const confirmBox = (title, text, ok = 'Evet', danger = false) => modal(title, `<p>${text}</p>`, { ok, danger }).then((v) => v !== null);
 
   /* ---------- oturum ---------- */
@@ -173,6 +203,26 @@
   }
 
   /* ---------- iskelet ---------- */
+  // Üst menüdeki hızlı arama
+  function quickSearch(inp) {
+    if (!inp) return;
+    let res = [], timer = null, lastQ = '';
+    const sb = suggestBox(inp, () => res.map((r) => ({ label: r.label, keys: r.sub + ' ' + inp.value, r,
+      html: `<span class="qs-t">${esc(r.t)}</span><span class="nm">${esc(r.label)}<br><span class="small muted">${esc(r.sub || '')}</span></span>` })),
+    (it) => { inp.value = ''; inp.blur(); location.hash = it.r.href; }, { showAllOnFocus: false, max: 20 });
+    inp.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = inp.value.trim();
+      if (q.length < 2) { res = []; return; }
+      timer = setTimeout(async () => {
+        if (q === lastQ) return; lastQ = q;
+        try { const r = await api('ara', { q }); if (inp.value.trim() === q) { res = r.results || []; sb.refresh(); } } catch (e) { /* sessiz */ }
+      }, 250);
+    });
+    if (quickSearch.bound) return; quickSearch.bound = true;
+    document.addEventListener('keydown', (e) => { const inp = qs('#qSearch'); if (inp && e.key === '/' && !/input|textarea|select/i.test(document.activeElement?.tagName || '')) { e.preventDefault(); inp.focus(); } });
+  }
+
   const NAV = [
     ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
@@ -186,6 +236,7 @@
       <header class="top">
         <a class="brand" href="#/">Lux Locations · Otel Paneli</a>
         <nav>${NAV.filter(([, , p]) => !p || can(p)).map(([h, t]) => `<a href="#/${h}" class="${navCur === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
+        <div class="qsearch"><input id="qSearch" type="search" placeholder="Ara: otel, acente, LUX kodu, misafir…" autocomplete="off" aria-label="Hızlı arama"></div>
         <div class="user"><a href="#/hesabim" style="color:#fff">${esc(S.user.name)}</a> <span style="opacity:.75">${esc(S.user.role_name)}</span>
           <button id="btnMode">${S.egitim ? 'Gerçek panele dön' : 'Eğitim bölümü'}</button><button id="btnOut">Çıkış</button></div>
       </header>
@@ -193,6 +244,7 @@
         <span class="spacer"></span><a href="#/egitim" style="color:#fff;text-decoration:underline">Eğitim rehberi</a>
         <button id="btnReset">Örnek verileri baştan yükle</button><button id="btnMode2">Gerçek panele dön</button></div>` : ''}
       <main id="main"></main>`;
+    quickSearch(qs('#qSearch'));
     qs('#btnOut').onclick = async () => { await api('logout', {}, {}); await loadSession(); A.log = []; A.status = null; asstToggle(false).catch(() => {}); asstHide(); stopPoll(); renderLogin(); };
     const toggle = async () => {
       if (S.dirty && !(await confirmBox('Kaydedilmemiş değişiklik', 'Bu sayfadaki değişiklikler kaydedilmedi. Yine de geçilsin mi?'))) return;
@@ -500,7 +552,7 @@
       <label class="f">Free oda tipi<select name="free_type">${S.consts.room_types.map((c) => `<option ${c === (v.free_type || 'DBL') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
       <label class="chk"><input type="checkbox" name="invoiced" ${+v.invoiced ? 'checked' : ''}> Faturalı fiyat</label>
       <label class="f wide">Otelde görüşülen kişi<input name="contact" value="${esc(v.contact || '')}" placeholder="ör. Veli Bey"></label>
-      <label class="f wide">Not<input name="note" value="${esc(v.note || '')}" placeholder="ör. Veli Bey ile görüşmeye istinaden"></label></div>`, { ok: 'Kaydet' });
+      <label class="f wide">Not<input name="note" value="${esc(v.note || '')}" placeholder="ör. Veli Bey ile görüşmeye istinaden"></label></div>`, { ok: 'Kaydet', onOpen: (bg) => historySuggest(qs('[name="contact"]', bg), 'contact', { hotel_id: h.id }) });
     if (!res) return;
     try { await api('rate_save', {}, Object.assign(res, { hotel_id: h.id }, r ? { id: r.id, version: r.version } : {})); toast('Sözleşme fiyatı kaydedildi.', 'ok'); after(); } catch (e) { toast(e.message, 'err'); }
   }
@@ -543,7 +595,7 @@
         ${(b.mail_log || []).length ? `<div class="small" style="margin:0 0 8px"><b>Otele giden e-postalar:</b> ${b.mail_log.map((l) => `<div class="${+l.ok ? '' : 'neg'}">${trDT(l.at)} · ${esc(l.state || '')} · ${esc(l.to_addr)}${l.cc ? ' (cc ' + esc(l.cc) + ')' : ''} · ${esc(l.user_name || '')}${+l.ok ? (l.error ? ' · ' + esc(l.error) : ' · gönderildi') : ' · <b>gönderilemedi:</b> ' + esc(l.error || '')}</div>`).join('')}</div>` : ''}
         <div class="grid-form">
           <label class="f">Grup sorumlusu / lider<input name="contact_name" value="${esc(x.contact_name || '')}" placeholder="ör. Mr. Ardit Krasniqi"></label>
-          <label class="f">Oda kategorisi<input name="room_category" list="rcl" value="${esc(x.room_category || '')}" placeholder="STANDART ROOM"><datalist id="rcl"><option>STANDART ROOM</option><option>SUPERIOR ROOM</option><option>DELUXE ROOM</option><option>FAMILY ROOM</option><option>SUITE</option></datalist></label>
+          <label class="f">Oda kategorisi<input name="room_category" value="${esc(x.room_category || '')}" placeholder="STANDART ROOM"></label>
           <label class="f">Milliyet<input name="nationality" value="${esc(x.nationality || '')}" placeholder="ör. Kosova"></label>
           <label class="f">Varış (uçuş, saat)<input name="arrival_info" value="${esc(x.arrival_info || '')}" placeholder="ör. 12.12 TK1018 14:30 IST"></label>
           <label class="f">Dönüş (uçuş, saat)<input name="departure_info" value="${esc(x.departure_info || '')}" placeholder="ör. 15.12 TK1019 18:10 IST"></label>
@@ -559,6 +611,11 @@
           <div class="row" style="margin-top:6px"><label class="small"><input type="checkbox" id="gReplace" checked> Mevcut listenin yerine koy</label><span class="spacer"></span><button type="button" class="primary" id="gPasteOk">Listeye ekle</button></div></div>` : ''}
       </div>`;
     const tb = qs('#gB', el);
+    if (ed) {
+      historySuggest(qs('[name="contact_name"]', el), 'contact_name');
+      historySuggest(qs('[name="room_category"]', el), 'room_category', {}, ['STANDART ROOM', 'SUPERIOR ROOM', 'DELUXE ROOM', 'FAMILY ROOM', 'SUITE']);
+      historySuggest(qs('[name="nationality"]', el), 'nationality', {}, COUNTRIES);
+    }
     const count = () => { const n = qsa('tr', tb).filter((tr) => qs('[data-k=name]', tr).value.trim()).length; qs('#gCount', el).textContent = n ? `${n} kişi` : 'Henüz isim yok.'; };
     count();
     if (!ed) { qsa('input, select, textarea', el).forEach((i) => { i.disabled = true; }); return; }
@@ -679,7 +736,7 @@
           ${b.status === 'iptal' ? `<div class="banner">İptal nedeni: ${esc(b.cancel_reason || '')}</div>` : ''}
           <div class="panel"><h3 style="margin-top:0">Grup bilgileri</h3><div class="grid-form">
             <label class="f">Otel<select name="hotel_id" ${isNew ? '' : 'disabled title="Başka otele taşımak için alttaki düğmeyi kullanın"'}>${hotels.map((h) => `<option value="${h.id}" ${h.id == b.hotel_id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select></label>
-            <label class="f">Acente<input name="agency_name" list="agl" value="${esc(agName(b.agency_id))}" placeholder="Yazmaya başlayın" ${isNew ? '' : 'disabled title="Başka acenteye vermek için Devret düğmesini kullanın"'}><datalist id="agl">${agR.agencies.map((a) => `<option value="${esc(a.name)}">${esc(a.aliases || '')}</option>`).join('')}</datalist></label>
+            <label class="f">Acente<input name="agency_name" value="${esc(agName(b.agency_id))}" placeholder="Yazmaya başlayın" ${isNew ? '' : 'disabled title="Başka acenteye vermek için Devret düğmesini kullanın"'}><span class="small muted" id="agHint"></span></label>
             <label class="f">Kod (voucher)<input name="code" value="${esc(b.code || '')}" placeholder="ör. LUX6340"></label>
             <label class="f">Giriş<input type="date" name="check_in" value="${b.check_in}"></label>
             <label class="f">Çıkış<input type="date" name="check_out" value="${b.check_out}"></label>
@@ -742,10 +799,35 @@
     const del = '<td><button type="button" class="link pz rm" title="Satırı sil" style="color:var(--err)">✕</button></td>';
     const roomRow = (r = {}) => `<tr><td><select data-k="room_type" class="pz">${opt(RT, r.room_type || 'DBL')}</select></td><td><input data-k="qty" class="pz" inputmode="numeric" value="${r.qty ?? ''}"></td><td><input data-k="buy_price" class="pz" inputmode="decimal" value="${r.buy_price ?? ''}"></td><td><input data-k="sell_price" class="pz" inputmode="decimal" value="${r.sell_price ?? ''}"></td>${del}</tr>`;
     const freeRow = (f = {}) => `<tr><td><select data-k="direction" class="pz"><option value="in" ${f.direction !== 'out' ? 'selected' : ''}>Otelden alınan</option><option value="out" ${f.direction === 'out' ? 'selected' : ''}>Acenteye verilen</option></select></td><td><select data-k="room_type" class="pz">${opt(RT, f.room_type || 'DBL')}</select></td><td><input data-k="qty" class="pz" inputmode="numeric" value="${f.qty ?? 1}"></td>${del}</tr>`;
-    const srvRow = (s = {}) => `<tr><td><input data-k="kind" class="pz" list="srvl" value="${esc(s.kind || '')}" placeholder="Transfer"></td><td><input data-k="description" class="pz" value="${esc(s.description || '')}"></td><td><input data-k="buy" class="pz" inputmode="decimal" value="${s.buy ?? ''}"></td><td><input data-k="sell" class="pz" inputmode="decimal" value="${s.sell ?? ''}"></td><td><select data-k="currency" class="pz">${opt(CUR, s.currency || 'EUR')}</select></td>${del}</tr>`;
+    const srvRow = (s = {}) => `<tr><td><input data-k="kind" class="pz" value="${esc(s.kind || '')}" placeholder="Transfer"></td><td><input data-k="description" class="pz" value="${esc(s.description || '')}"></td><td><input data-k="buy" class="pz" inputmode="decimal" value="${s.buy ?? ''}"></td><td><input data-k="sell" class="pz" inputmode="decimal" value="${s.sell ?? ''}"></td><td><select data-k="currency" class="pz">${opt(CUR, s.currency || 'EUR')}</select></td>${del}</tr>`;
     rowsEl.rooms.innerHTML = b.rooms.map(roomRow).join('');
     rowsEl.free.innerHTML = b.free.map(freeRow).join('');
-    rowsEl.srv.innerHTML = b.services.map(srvRow).join('') + '<datalist id="srvl"><option>Transfer</option><option>Rehber</option><option>Tur lideri</option><option>Gala</option><option>Tur</option><option>Tekne</option></datalist>';
+    rowsEl.srv.innerHTML = b.services.map(srvRow).join('');
+    // Hizmet adı yazarken öneri; seçilince son alış/satış fiyatı dolar
+    let srvLast = null;
+    const SRV_DEF = ['Transfer', 'Rehber', 'Tur lideri', 'Gala', 'Tur', 'Tekne'];
+    rowsEl.srv.addEventListener('focusin', (e) => {
+      const inp = e.target.closest('[data-k=kind]');
+      if (!inp || inp.dataset.sb || inp.disabled) return;
+      inp.dataset.sb = '1';
+      if (!srvLast) { srvLast = []; api('hizmet_fiyat').then((r) => { srvLast.push(...(r.services || [])); inp.dispatchEvent(new Event('input')); }).catch(() => {}); }
+      const items = () => {
+        const seen = new Set(srvLast.map((x) => normTr(x.kind)));
+        return srvLast.map((x) => ({ label: x.kind, keys: x.description, x,
+          html: `<span class="nm">${esc(x.kind)}${x.description ? ' · ' + esc(x.description) : ''}<br><span class="small muted">Son: alış ${x.buy ?? '—'} / satış ${x.sell ?? '—'} ${esc(x.currency)} · ${trDate(x.date)}</span></span>` }))
+          .concat(SRV_DEF.filter((k) => !seen.has(normTr(k))).map((k) => ({ label: k })));
+      };
+      suggestBox(inp, items, (it) => {
+        const tr = inp.closest('tr');
+        if (it.x) {
+          const f = (k, v) => { const el = qs(`[data-k=${k}]`, tr); if (el && v !== null && v !== undefined && (k === 'currency' || el.value === '')) el.value = v; };
+          f('description', it.x.description); f('buy', it.x.buy); f('sell', it.x.sell); f('currency', it.x.currency);
+          toast('Son fiyat dolduruldu, gerekirse değiştirin.', 'ok');
+        }
+        schedule();
+      });
+      setTimeout(() => inp.dispatchEvent(new Event('focus')), 0);
+    });
 
     const applyLock = () => {
       if (locked) qsa('.pz', main).forEach((el) => { el.disabled = true; });
@@ -805,6 +887,20 @@
     }
 
     hotelCombo(form);
+    if (isNew && form.agency_name) {
+      suggestBox(form.agency_name, () => agR.agencies.map((a) => ({ label: a.name, keys: `${a.aliases || ''} ${a.country || ''}`, a,
+        html: `<span class="nm">${esc(a.name)}<br><span class="small muted">${esc(a.country || '')}${a.aliases ? ' · ' + esc(a.aliases) : ''}</span></span>` })),
+      () => { qs('#agHint', main).textContent = ''; schedule(); }, {
+        extra: (q, shown) => shown.some((x) => normTr(x.label) === normTr(q)) ? null : { label: q, html: `<span class="nm"><b>+ "${esc(q)}"</b> yeni acente olarak ekle</span>` },
+      });
+      if (b.fromTalep) {
+        api('talep_acente', { name: b.fromTalep.name || '', email: b.fromTalep.email || '' }).then((r) => {
+          if (!r.agency || form.agency_name.value) return;
+          form.agency_name.value = r.agency.name;
+          qs('#agHint', main).textContent = `Talep sahibi bu acenteyle eşleşti (${r.agency.why}). Farklıysa değiştirin.`;
+        }).catch(() => {});
+      }
+    }
     form.addEventListener('input', schedule);
     form.addEventListener('change', (e) => {
       if (e.target.name === 'sell_mode') {
@@ -881,8 +977,9 @@
     };
     const bt = qs('#btnTransfer', main); if (bt) bt.onclick = async () => {
       const r = await modal('Başka acenteye devret', `<p class="small">Aynı odalar yeni acenteye verilir: bu grup "İptal (devredildi)" olur, yeni acente için kopyası açılır. Yeni gruba sıradaki LUX kodu verilir (voucher farklıysa düzeltin). Yeni grubun satış fiyatını kontrol edin.</p>
-        <label class="f">Yeni acente<select name="agency_id">${agR.agencies.filter((a) => a.id != b.agency_id).map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label>
-        <div class="grid-form" style="margin-top:10px"><label class="f">Yeni giriş (değişmiyorsa boş)<input type="date" name="check_in"></label><label class="f">Yeni çıkış<input type="date" name="check_out"></label></div>`, { ok: 'Devret' });
+        <label class="f">Yeni acente<select name="agency_id"><option value="">—</option>${agR.agencies.filter((a) => a.id != b.agency_id).map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label>
+        <div class="grid-form" style="margin-top:10px"><label class="f">Yeni giriş (değişmiyorsa boş)<input type="date" name="check_in"></label><label class="f">Yeni çıkış<input type="date" name="check_out"></label></div>`, { ok: 'Devret', onOpen: (bg) => agencyCombo(bg, agR.agencies) });
+      if (r && !r.agency_id) { toast('Yeni acenteyi seçin.', 'err'); return; }
       if (!r) return;
       try { const n = await api('booking_transfer', {}, { id: b.id, version: b.version, ...r }); S.dirty = false; toast('Grup devredildi. Yeni grubu açtım.', 'ok'); go('#/grup/' + n.id); } catch (e) { toast(e.message, 'err'); }
     };
@@ -1049,20 +1146,42 @@
     const d = await api('agencies');
     main.innerHTML = `<div class="row"><h1>Acenteler</h1><span class="spacer"></span>${can('agency') ? '<button class="primary" id="addAg">+ Acente ekle</button>' : ''}</div>
       <div class="small muted" style="margin-bottom:10px">Satış toplamı: konfirme, konaklamada ve kapanmış grupların net satışı ve ek hizmetleri.${can('cari') ? ' Bakiye: satış eksi tahsilat (acentenin borcu).' : ''}</div>
+      <div class="row" style="margin-bottom:8px"><input id="agQ" type="search" placeholder="Acente, ülke ya da sorumlu ara…" style="max-width:340px"><span class="small muted" id="agN"></span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Acente</th><th>Ülke</th><th>Diğer yazımlar</th><th>Sorumlu</th><th class="num">Grup</th><th class="num">İptal</th><th class="num">Satış toplamı</th>${can('cari') ? '<th class="num">Bakiye</th>' : ''}</tr></thead><tbody>
       ${d.agencies.map((a) => `<tr class="click" data-id="${a.id}"><td><b>${esc(a.name)}</b>${+a.active ? '' : ' <span class="badge st-iptal">Pasif</span>'}</td><td>${esc(a.country || '')}</td><td class="small">${esc(a.aliases || '')}</td><td>${esc(a.owner || '')}</td><td class="num">${a.bookings}</td>
         <td class="num" style="${a.cancelled ? 'color:var(--err)' : ''}">${a.cancelled}${a.bookings ? ` <span class="muted small">(%${Math.round(100 * a.cancelled / a.bookings)})</span>` : ''}</td>
         <td class="num">${Object.entries(a.sales).map(([c, v]) => money0(v, c)).join('<br>') || '—'}</td>${can('cari') ? `<td class="num">${Object.entries(a.balance || {}).map(([c, v]) => `<b class="${v > 0 ? 'neg' : ''}">${money0(v, c)}</b>`).join('<br>') || '—'}</td>` : ''}</tr>`).join('') || '<tr><td colspan="8" class="muted">Henüz acente yok.</td></tr>'}
       </tbody></table></div>`;
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/acente/' + r.dataset.id));
+    tableFilter(qs('#agQ', main), qs('tbody', main), qs('#agN', main));
     const b = qs('#addAg', main); if (b) b.onclick = () => agencyForm(null, (a) => go('#/acente/' + a.id));
+  }
+
+  function agencyFormHelp(bg, a) {
+    const country = qs('[name="country"]', bg);
+    suggestBox(country, () => COUNTRIES.map((c) => ({ label: c })), () => {}, { max: 10 });
+    historySuggest(qs('[name="owner"]', bg), 'owner');
+    if (a) return;
+    const name = qs('[name="name"]', bg), dup = qs('#agDup', bg);
+    let list = [];
+    api('agency_names').then((r) => { list = r.agencies || []; }).catch(() => {});
+    suggestBox(name, () => list.map((x) => ({ label: x.name, keys: `${x.aliases || ''} ${x.country || ''}`, x,
+      html: `<span class="nm">${esc(x.name)} · <b>panelde var</b><br><span class="small muted">${esc(x.country || '')}${x.aliases ? ' · ' + esc(x.aliases) : ''}</span></span>` })), (it) => {
+      dup.innerHTML = `<span class="neg">"${esc(it.x.name)}" zaten var.</span> <a href="#/acente/${it.x.id}" class="go-a">Acenteyi aç</a>`;
+    }, { showAllOnFocus: false });
+    name.addEventListener('input', () => {
+      const q = normTr(name.value.trim());
+      const hit = q.length > 2 && list.find((x) => normTr(x.name) === q || (x.aliases || '').split(',').some((s) => normTr(s.trim()) === q));
+      dup.innerHTML = hit ? `<span class="neg">"${esc(hit.name)}" zaten var.</span> <a href="#/acente/${hit.id}" class="go-a">Acenteyi aç</a>` : '';
+    });
+    dup.addEventListener('click', (e) => { if (e.target.closest('.go-a')) { const x = qs('[data-x="0"]', bg); if (x) x.click(); } });
   }
 
   async function agencyForm(a, after) {
     const v = a || {};
     const r = await modal(a ? 'Acenteyi düzenle' : 'Yeni acente', `<div class="grid-form">
       <label class="f wide">Acente adı<input name="name" value="${esc(v.name || '')}"></label>
-      <label class="f">Ülke<input name="country" value="${esc(v.country || '')}" list="countries"></label>
+      <label class="f">Ülke<input name="country" value="${esc(v.country || '')}"></label>
       <label class="f">Sorumlu (bizden)<input name="owner" value="${esc(v.owner || '')}"></label>
       <label class="f wide">Diğer yazımlar (virgülle; ör. Soco, Soca)<input name="aliases" value="${esc(v.aliases || '')}"></label>
       <label class="f wide">İletişim<textarea name="contact">${esc(v.contact || '')}</textarea></label>
@@ -1070,7 +1189,7 @@
       <label class="f wide">Fatura bilgileri (unvan, adres, vergi no)<textarea name="invoice_info" placeholder="ör. SOCO TRAVEL SRL&#10;Str. Victoriei 12, București, Romania&#10;VAT: RO12345678">${esc(v.invoice_info || '')}</textarea></label>
       <label class="f wide">Notlar<textarea name="notes">${esc(v.notes || '')}</textarea></label>
       ${a ? `<label class="chk"><input type="checkbox" name="active" ${+v.active ? 'checked' : ''}> Aktif</label>` : ''}</div>
-      <datalist id="countries"><option>Romanya</option><option>Sırbistan</option><option>Arnavutluk</option><option>Bosna</option><option>Hırvatistan</option><option>Fas</option><option>İran</option><option>Türkiye</option></datalist>`, { ok: 'Kaydet' });
+      ${a ? '' : '<div class="small" id="agDup" style="margin-top:6px"></div>'}`, { ok: 'Kaydet', onOpen: (bg) => agencyFormHelp(bg, a) });
     if (!r) return;
     try { const s = await api('agency_save', {}, Object.assign(r, a ? { id: a.id, version: a.version } : {})); toast('Acente kaydedildi.', 'ok'); after(s); } catch (e) { toast(e.message, 'err'); }
   }
@@ -1091,6 +1210,7 @@
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/grup/' + r.dataset.id));
     const e = qs('#editAg', main); if (e) e.onclick = () => agencyForm(a, () => route());
     const pf = qs('#payF', main);
+    if (pf) selectCombo(pf, 'select[name="booking_id"]', 'Grup kodu, otel ya da tarih…');
     if (pf) pf.onsubmit = async (ev) => {
       ev.preventDefault();
       try { await api('payment_save', {}, Object.assign(Object.fromEntries(new FormData(pf)), { agency_id: a.id })); toast('Tahsilat kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
@@ -1155,11 +1275,13 @@
     const d = await api('hotels');
     main.innerHTML = `<div class="row"><h1>Otel listesi</h1><span class="spacer"></span><button class="primary" id="addH">+ Otel ekle</button></div>
       <div class="small muted" style="margin-bottom:10px">Pasif oteller ızgarada görünmez ama eski grupları saklanır.</div>
+      <div class="row" style="margin-bottom:8px"><input id="hlQ" type="search" placeholder="Otel ya da bölge ara…" style="max-width:340px"><span class="small muted" id="hlN"></span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Otel</th><th>Yıldız</th><th>Bölge</th><th>Durum</th></tr></thead><tbody>
       ${d.hotels.map((h) => `<tr class="click" data-id="${h.id}"><td>${esc(h.name)}</td><td>${h.stars ? '★'.repeat(+h.stars) : ''}</td><td>${esc(h.region || '')}</td><td>${+h.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Henüz otel yok.</td></tr>'}
       </tbody></table></div>`;
     qs('#addH', main).onclick = () => hotelForm();
     qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/otel/' + r.dataset.id));
+    tableFilter(qs('#hlQ', main), qs('tbody', main), qs('#hlN', main));
   }
 
   /* ================= KULLANICILAR ================= */
@@ -1304,7 +1426,7 @@
       </div><div class="row" style="margin-top:10px"><button class="primary">Notu ekle</button></div></form>
       <div class="notes">${d.notes.map(noteRow).join('') || '<div class="empty">Açık not yok.</div>'}</div>`;
     const f = qs('#nf', main);
-    hotelCombo(f);
+    hotelCombo(f); agencyCombo(f, ag.agencies);
     f.onsubmit = async (e) => { e.preventDefault(); try { await api('note_save', {}, Object.fromEntries(new FormData(f))); toast('Not eklendi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
     qsa('.note input[type=checkbox]', main).forEach((c) => c.onchange = async () => {
       try { await api('note_done', {}, { id: +c.dataset.id, done: c.checked }); route(); } catch (er) { toast(er.message, 'err'); c.checked = !c.checked; }
