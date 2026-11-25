@@ -710,7 +710,7 @@
     let b;
     if (isNew) {
       const ci = p.giris || today();
-      b = { id: null, hotel_id: p.otel ? +p.otel : (hotels[0] ? hotels[0].id : null), agency_id: null, code: '', check_in: ci, check_out: addDays(ci, 3), board: 'BB', status: 'teklif',
+      b = { id: null, hotel_id: p.otel ? +p.otel : null, agency_id: null, code: '', check_in: ci, check_out: addDays(ci, 3), board: 'BB', status: 'teklif',
         rooms_reserved: 25, rooms_option: '', option_until: '', hotel_conf_code: '', buy_cur: 'USD', sell_cur: 'EUR', sell_mode: 'room', eur_try: '', usd_try: '', buy_note: '', notes: '',
         rooms: [{ room_type: 'DBL', qty: 25, buy_price: '', sell_price: '' }], free: [], services: [], version: null, history: [] };
       if (p.talep) {
@@ -744,7 +744,7 @@
           ${locked ? `<div class="lockbox">Bu grup ${esc(S.consts.statuses[b.status])}: fiyatlar, odalar ve kurlar kilitli. Değiştirmek için Yönetici gerekir. Kod, not ve durum değiştirilebilir.</div>` : ''}
           ${b.status === 'iptal' ? `<div class="banner">İptal nedeni: ${esc(b.cancel_reason || '')}</div>` : ''}
           <div class="panel"><h3 style="margin-top:0">Grup bilgileri</h3><div class="grid-form">
-            <label class="f">Otel<select name="hotel_id" ${isNew ? '' : 'disabled title="Başka otele taşımak için alttaki düğmeyi kullanın"'}>${hotels.map((h) => `<option value="${h.id}" ${h.id == b.hotel_id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select></label>
+            <label class="f">Otel<select name="hotel_id" ${isNew ? '' : 'disabled title="Başka otele taşımak için alttaki düğmeyi kullanın"'}>${isNew && !b.hotel_id ? '<option value="" selected>—</option>' : ''}${hotels.map((h) => `<option value="${h.id}" ${h.id == b.hotel_id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select></label>
             <label class="f">Acente<input name="agency_name" value="${esc(agName(b.agency_id))}" placeholder="Yazmaya başlayın" ${isNew ? '' : 'disabled title="Başka acenteye vermek için Devret düğmesini kullanın"'}><span class="small muted" id="agHint"></span></label>
             <label class="f">Kod (voucher)<input name="code" value="${esc(b.code || '')}" placeholder="ör. LUX6340"></label>
             <label class="f">Giriş<input type="date" name="check_in" value="${b.check_in}"></label>
@@ -917,7 +917,7 @@
         qs('#sellHead', main).textContent = `Satış (${pp ? 'kişi başı' : 'oda/gece'})`;
         qs('#ppHint', main).textContent = pp ? 'PP: SNGL ve DBL oda = PP x 2, TRPL = PP x 3, QUAD = PP x 4.' : '';
       }
-      if (e.target.name === 'hotel_id' && isNew) fillFromContract(true);
+      if (e.target.name === 'hotel_id' && isNew && e.target.value) fillFromContract(true);
       schedule();
     });
     main.addEventListener('click', (e) => {
@@ -954,6 +954,7 @@
 
     const save = async (extra = {}) => {
       const body = Object.assign(collect(), extra);
+      if (isNew && !body.hotel_id) { toast('Otel seçin.', 'err'); const hi = qs('select[name=hotel_id] + input', form); if (hi) hi.focus(); return; }
       if (isNew && !body.agency_id) {
         const nm = (form.agency_name.value || '').trim();
         if (!nm) { toast('Acente seçin.', 'err'); form.agency_name.focus(); return; }
