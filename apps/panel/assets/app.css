@@ -260,3 +260,88 @@ body.egitim .asst-fab { background: var(--train); }
 .top .qsearch .sugg { min-width: 340px; }
 @media (max-width: 820px) { .top .qsearch { flex: 1 1 100%; margin: 4px 0 8px; } .top .qsearch .sugg { min-width: 0; } }
 #srvB td.sugg-wrap .sugg { min-width: 300px; }
+
+/* ================= Görünüm: sade + balon (modern), açık/koyu tema ================= */
+:root {
+  --brand: #3a5f78; --brand-2: #2b4a5f; --bg: #f5f6f8; --card: #fff; --ink: #1d2730; --muted: #6b7782; --line: #e5e9ed;
+  --soft: #f3f5f7; --head: #fff; --head-ink: #1d2730;
+  --st-teklif: #8b97a3; --st-opsiyon: #e08a1e; --st-konfirme: #2e9b5d; --st-konaklamada: #2f6db3; --st-kapandi: #56616b; --st-iptal: #c0392b; --st-talep: #7b5cc4;
+}
+[data-theme="dark"] {
+  --brand: #7fb0d0; --brand-2: #a5c8df; --bg: #12171c; --card: #1b2229; --ink: #e4e9ed; --muted: #95a2ad; --line: #2b343d;
+  --soft: #222a32; --head: #1b2229; --head-ink: #e4e9ed;
+  --ok: #4cc283; --ok-bg: #173226; --warn: #f0a94a; --warn-bg: #33270f; --err: #ef6b5d; --err-bg: #3a1c19; --info: #6aa8ea; --info-bg: #172a3e;
+}
+html, body { background: var(--bg); color: var(--ink); }
+.top { background: var(--head); color: var(--head-ink); border-bottom: 1px solid var(--line); box-shadow: 0 1px 3px rgba(20,30,40,.05); }
+.top .brand { color: var(--brand); }
+.top nav a { color: var(--muted); border-radius: 0; padding: 15px 10px 13px; border-bottom: 3px solid transparent; }
+.top nav a.on, .top nav a:hover { background: none; color: var(--ink); border-bottom-color: var(--brand); }
+.top .user, .top .user a { color: var(--muted) !important; }
+.top .user button { background: var(--soft); color: var(--ink); border: 1px solid var(--line); }
+.top .qsearch input { background: var(--soft); border: 1px solid var(--line); color: var(--ink); }
+button, .btn, input, select, textarea, .tbl-wrap, .hcard, .empty, .cal-wrap, .modal, .login, .lesson, .sugg, .asst-mic, .guide .toc { background-color: var(--card); color: var(--ink); border-color: var(--line); }
+button.primary, .btn.primary, .quick button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+[data-theme="dark"] button.primary, [data-theme="dark"] .btn.primary, [data-theme="dark"] .quick button.on { color: #10161b; }
+th, .cal .lbl, .cal .day { background: var(--soft); }
+.cal .day.we { background: var(--bg); }
+tr.click:hover td, .sugg li:hover, .sugg li.on { background: var(--soft); }
+input[disabled], select[disabled] { background: var(--soft); color: var(--muted); }
+.panel, .card { background: var(--card); border-color: var(--line); }
+.hcard { border-top-width: 4px; border-top-color: var(--line); box-shadow: 0 1px 2px rgba(20,30,40,.04); }
+.hcard .cover, .hhead .cover { background-color: var(--soft); }
+.hcard.f-warn { border-top-color: var(--st-opsiyon); }
+.bar { background: var(--soft); }
+.flag { font-weight: 500; background: transparent !important; border: 1px solid currentColor; }
+.lockbox, .calc .prof div, kbd { background: var(--soft); }
+.st-teklif { background: color-mix(in srgb, var(--st-teklif) 16%, transparent); color: var(--st-teklif); }
+.st-opsiyon { background: color-mix(in srgb, var(--st-opsiyon) 16%, transparent); color: var(--st-opsiyon); }
+.st-konfirme { background: color-mix(in srgb, var(--st-konfirme) 16%, transparent); color: var(--st-konfirme); }
+.st-konaklamada { background: color-mix(in srgb, var(--st-konaklamada) 16%, transparent); color: var(--st-konaklamada); }
+.st-kapandi { background: color-mix(in srgb, var(--st-kapandi) 16%, transparent); color: var(--st-kapandi); }
+.st-iptal { background: color-mix(in srgb, var(--st-iptal) 16%, transparent); color: var(--st-iptal); }
+.cal .bk.opsiyon { background: var(--st-opsiyon); color: #fff; }
+.asst-fab { box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+[data-theme="dark"] .w.error { color: var(--err); }
+[data-theme="dark"] .w.warn, [data-theme="dark"] .banner { color: var(--warn); }
+[data-theme="dark"] .w.info { color: var(--info); }
+/* ===== Balon (modern, yuvarlak) ===== */
+:root { --bg: #eef2f6; --line: #e3e8ee; --soft: #f1f4f8; --r: 18px; }
+[data-theme="dark"] { --bg: #0f1418; --soft: #232c35; --line: #2b343d; }
+html { background: radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 60%) fixed, var(--bg) !important; min-height: 100%; }
+body { background: transparent !important; }
+.top { margin: 10px 12px 0; border-radius: 22px; border: 1px solid var(--line); background: color-mix(in srgb, var(--head) 82%, transparent); backdrop-filter: blur(12px); box-shadow: 0 8px 24px rgba(20,40,60,.08); padding: 6px 12px; top: 8px; }
+.top nav { gap: 4px; }
+.top nav a { border: 0; border-radius: 999px; padding: 7px 14px; }
+.top nav a.on { background: var(--brand); color: #fff; }
+[data-theme="dark"] .top nav a.on { color: #10161b; }
+.top nav a:hover:not(.on) { background: var(--soft); color: var(--ink); }
+.top .qsearch input { border-radius: 999px; padding: 8px 16px; }
+.top .user button { border-radius: 999px; }
+button, .btn { border-radius: 999px; padding: 8px 16px; }
+.quick button { border-radius: 999px; }
+input, select, textarea { border-radius: 12px; }
+textarea { border-radius: 14px; }
+.card, .panel, .tbl-wrap, .cal-wrap, .empty { border-radius: var(--r); border-color: transparent; box-shadow: 0 6px 20px rgba(20,40,60,.06); }
+.totals .card { padding: 14px 18px; }
+.hcard { border-radius: 22px; border: 0; border-top: 0; box-shadow: 0 8px 24px rgba(20,40,60,.08); overflow: hidden; position: relative; }
+.hcard::before { content: ''; position: absolute; top: 12px; right: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); box-shadow: 0 0 0 3px rgba(255,255,255,.85); z-index: 2; }
+.hcard.f-ok::before { background: var(--ok); } .hcard.f-warn::before { background: var(--st-opsiyon); } .hcard.f-err::before { background: var(--err); }
+.hcard:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(20,40,60,.14); }
+.hcard { transition: transform .15s, box-shadow .15s; }
+.hcard .cover { border-radius: 0 0 18px 18px; }
+.bar { height: 6px; }
+.flag { border: 0 !important; padding: 3px 10px; }
+.flag.err { background: var(--err-bg) !important; } .flag.warn { background: var(--warn-bg) !important; } .flag.ok { background: var(--ok-bg) !important; } .flag.info { background: var(--info-bg) !important; }
+.badge, [class^="st-"], [class*=" st-"] { border-radius: 999px; }
+.banner, .lockbox, .w { border-radius: 14px; }
+.modal { border-radius: 24px; }
+.sugg { border-radius: 16px; padding: 6px; } .sugg li { border-radius: 10px; }
+.calc .prof div { border-radius: 14px; }
+.cal .bk { border-radius: 999px; }
+th:first-child { border-top-left-radius: var(--r); } th:last-child { border-top-right-radius: var(--r); }
+body.egitim .top { background: color-mix(in srgb, var(--train) 22%, var(--head)); }
+.top .theme-btn { width: 36px; height: 36px; padding: 0; justify-content: center; font-size: 16px; }
+.login { border-radius: 24px; border-color: transparent; box-shadow: 0 10px 30px rgba(20,40,60,.10); }
+@media (prefers-reduced-motion: reduce) { .hcard, .hcard:hover { transition: none; transform: none; } }
+@media (max-width: 820px) { .top { margin: 6px 6px 0; border-radius: 16px; } }

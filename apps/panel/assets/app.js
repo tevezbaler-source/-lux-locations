@@ -228,6 +228,11 @@
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
+  // Açık/koyu tema: seçim bu tarayıcıda hatırlanır
+  const themeGet = () => { try { return localStorage.getItem('lx-tema') || ''; } catch (e) { return ''; } };
+  const themeSet = (t) => { document.documentElement.dataset.theme = t; try { localStorage.setItem('lx-tema', t); } catch (e) { /* yok */ } };
+  document.documentElement.dataset.theme = themeGet();
+
   function shell() {
     document.body.classList.toggle('egitim', S.egitim);
     const cur = parseHash().parts[0] || '';
@@ -238,13 +243,14 @@
         <nav>${NAV.filter(([, , p]) => !p || can(p)).map(([h, t]) => `<a href="#/${h}" class="${navCur === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
         <div class="qsearch"><input id="qSearch" type="search" placeholder="Ara: otel, acente, LUX kodu, misafir…" autocomplete="off" aria-label="Hızlı arama"></div>
         <div class="user"><a href="#/hesabim" style="color:#fff">${esc(S.user.name)}</a> <span style="opacity:.75">${esc(S.user.role_name)}</span>
-          <button id="btnMode">${S.egitim ? 'Gerçek panele dön' : 'Eğitim bölümü'}</button><button id="btnOut">Çıkış</button></div>
+          <button id="btnTheme" class="theme-btn" title="Açık / koyu görünüm" aria-label="Açık / koyu görünüm">${themeGet() === 'dark' ? '☀' : '☾'}</button><button id="btnMode">${S.egitim ? 'Gerçek panele dön' : 'Eğitim bölümü'}</button><button id="btnOut">Çıkış</button></div>
       </header>
       ${S.egitim ? `<div class="train-bar">EĞİTİM BÖLÜMÜ: Örnek verilerle çalışıyorsunuz. Burada yaptıklarınız gerçek kayıtlara dokunmaz.
         <span class="spacer"></span><a href="#/egitim" style="color:#fff;text-decoration:underline">Eğitim rehberi</a>
         <button id="btnReset">Örnek verileri baştan yükle</button><button id="btnMode2">Gerçek panele dön</button></div>` : ''}
       <main id="main"></main>`;
     quickSearch(qs('#qSearch'));
+    qs('#btnTheme').onclick = (e) => { const t = themeGet() === 'dark' ? '' : 'dark'; themeSet(t); e.currentTarget.textContent = t === 'dark' ? '☀' : '☾'; };
     qs('#btnOut').onclick = async () => { await api('logout', {}, {}); await loadSession(); A.log = []; A.status = null; asstToggle(false).catch(() => {}); asstHide(); stopPoll(); renderLogin(); };
     const toggle = async () => {
       if (S.dirty && !(await confirmBox('Kaydedilmemiş değişiklik', 'Bu sayfadaki değişiklikler kaydedilmedi. Yine de geçilsin mi?'))) return;
