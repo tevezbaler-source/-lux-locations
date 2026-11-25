@@ -875,3 +875,15 @@ function hotel_region_guess(string $name): ?string {
     if (str_contains($t, ' old ') && str_contains($t, ' city ')) return 'Sultanahmet';
     return null;
 }
+
+/** Sunucuya (data/toplu-oteller.txt) bırakılan listeyi, otel yetkisi olan biri paneli açınca bir kez içe aktarır. */
+function hotels_import_pending(): ?array {
+    $f = dirname(__DIR__) . '/data/toplu-oteller.txt';
+    if (!is_file($f) || !can('hotel')) return null;
+    $done = $f . '.' . date('Ymd-His') . '.yapildi';
+    if (!@rename($f, $done)) return null; // aynı anda iki istek gelirse yalnız biri çalışır
+    $text = (string)file_get_contents($done);
+    $pv = hotels_import($text, false);
+    $sims = array_column(array_filter($pv['similar'], fn($x) => !$x['same']), 'name');
+    return hotels_import($text, true, $sims);
+}

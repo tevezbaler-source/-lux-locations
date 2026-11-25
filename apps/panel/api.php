@@ -79,6 +79,7 @@ try {
                 $regions = array_column(q_all("SELECT DISTINCT region FROM hotels WHERE active = 1 AND region IS NOT NULL ORDER BY region"), 'region');
                 if (empty($_SESSION['egitim'])) { try { tcmb_auto_record(db_main()); } catch (Throwable $e) {} }
                 if (empty($_SESSION['egitim'])) { try { site_hotels_sync(); } catch (Throwable $e) { error_log('site otel esitleme: ' . $e->getMessage()); } }
+                if (empty($_SESSION['egitim'])) { try { hotels_import_pending(); } catch (Throwable $e) { error_log('toplu otel: ' . $e->getMessage()); } }
                 $hiddenN = 0;
                 $gridH = hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? ''), !empty($_GET['hepsi']), $hiddenN);
                 out(['hotels' => $gridH, 'hidden' => $hiddenN, 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
