@@ -14,6 +14,15 @@ foreach (array_keys(lx_pages()) as $base) {
     if ($f === null && $base !== '/oteller/') continue;
     $bases[$base] = $f !== null ? filemtime($f) : time();
 }
+// Hizmet ve destinasyon sayfaları (panelden düzenlenmez, lx_pages() listesinde yok): diskte ne varsa eklenir.
+$extra = array('/destinasyonlar/');
+foreach (array('hizmetler', 'destinasyonlar') as $dir) {
+    foreach ((array) glob(LX_ROOT . '/' . $dir . '/*/index.html') as $f) $extra[] = '/' . $dir . '/' . basename(dirname($f)) . '/';
+}
+foreach ($extra as $base) {
+    $f = lx_file_for($base);
+    if ($f !== null) $bases[$base] = filemtime($f);
+}
 try {
     $hotelsFile = LX_DATA . '/hotels.json';
     $hm = is_file($hotelsFile) ? filemtime($hotelsFile) : time();
