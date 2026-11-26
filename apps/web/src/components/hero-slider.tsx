@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import type { Dict } from "@/i18n/types";
-import { EuFlag } from "./eu-flag";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
@@ -47,7 +46,6 @@ export function HeroSlider({ ctaHref, t }: { ctaHref: string; t: Dict["slider"] 
       <button className="slider-arrow next" onClick={() => go(index + 1)} aria-label={t.next}>
         ›
       </button>
-      <EuFlag label={t.euPartner} />
       <div className="slider-dots">
         {SLIDES.map((s, i) => (
           <button key={s.img} className={i === index ? "on" : ""} onClick={() => go(i)} aria-label={s.title} />

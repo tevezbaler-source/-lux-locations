@@ -1,12 +1,11 @@
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SLICES = 24;
 
-// Ana ekranın köşesinde dalgalanan AB bayrağı (yazısız; label yalnız ekran okuyucu için). Bayrak dikey şeritlere bölünür;
+// Üst şeritte logo ile "Talep oluştur" arasında dalgalanan AB bayrağı (yazısız; label yalnız ekran okuyucu için). Bayrak dikey şeritlere bölünür;
 // her şerit biraz gecikmeyle inip kalkar, gölgesi de birlikte değişir (yalnız transform/opacity, telefonda hafif).
 export function EuFlag({ label }: { label: string }) {
   return (
-    <div className="eu-flag">
-      <div className="eu-flag-cloth" role="img" aria-label={label} style={{ ["--eu-img" as string]: `url(${BASE}/assets/eu-flag.svg)` }}>
+    <div className="eu-flag" role="img" aria-label={label} title={label} style={{ ["--eu-img" as string]: `url(${BASE}/assets/eu-flag.svg)` }}>
         {Array.from({ length: SLICES }, (_, i) => (
           <span
             key={i}
@@ -16,7 +15,6 @@ export function EuFlag({ label }: { label: string }) {
             }}
           />
         ))}
-      </div>
     </div>
   );
 }
