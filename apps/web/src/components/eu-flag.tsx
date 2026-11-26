@@ -1,7 +1,7 @@
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SLICES = 24;
 
-// Ana ekranın köşesinde dalgalanan AB bayrağı. Bayrak dikey şeritlere bölünür;
+// Ana ekranın köşesinde dalgalanan AB bayrağı (yazısız; label yalnız ekran okuyucu için). Bayrak dikey şeritlere bölünür;
 // her şerit biraz gecikmeyle inip kalkar, gölgesi de birlikte değişir (yalnız transform/opacity, telefonda hafif).
 export function EuFlag({ label }: { label: string }) {
   return (
@@ -17,7 +17,6 @@ export function EuFlag({ label }: { label: string }) {
           />
         ))}
       </div>
-      <p>{label}</p>
     </div>
   );
 }

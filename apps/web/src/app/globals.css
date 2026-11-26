@@ -150,21 +150,19 @@ footer { margin-top: 90px; padding: 40px 7%; border-top: 1px solid var(--line); 
 .intro h1 { font: 500 clamp(36px, 4.6vw, 64px)/1.12 var(--font-serif), serif; letter-spacing: -1px; margin: 18px 0; color: var(--ink); }
 .intro h1 em { font-weight: 400; color: var(--gold); }
 .intro p { max-width: 520px; margin: auto; }
-/* Ana ekranın sağ üst köşesinde dalgalanan AB bayrağı ve altında "Avrupa'dan gruplar" yazısı */
+/* Ana ekranın sağ üst köşesinde dalgalanan AB bayrağı */
 .eu-flag { position: absolute; top: 28px; right: 3%; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .32)); }
 .eu-flag-cloth { --w: 150px; --n: 24; direction: ltr; width: var(--w); height: calc(var(--w) * 2 / 3); display: flex; }
 .eu-flag-cloth span { position: relative; flex: 1 1 0; height: 100%; margin-right: -.5px; background-image: var(--eu-img); background-size: var(--w) 100%; background-position: calc(var(--i) * var(--w) / var(--n) * -1) 0; animation: eu-wave 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -.09s); }
 .eu-flag-cloth span::after { content: ""; position: absolute; inset: 0; background: #000; opacity: 0; animation: eu-shade 2.6s ease-in-out infinite; animation-delay: inherit; }
 .eu-flag-cloth span:first-child { border-radius: 3px 0 0 3px; }
 .eu-flag-cloth span:last-child { border-radius: 0 3px 3px 0; }
-.eu-flag p { margin: 0; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, .95); color: var(--blue-deep); font: 600 13px/1.2 var(--font-sans), sans-serif; white-space: nowrap; }
 @keyframes eu-wave { 0%, 100% { transform: translateY(calc(var(--a) * -5px)); } 50% { transform: translateY(calc(var(--a) * 5px)); } }
 @keyframes eu-shade { 0%, 100% { opacity: 0; } 50% { opacity: .22; } }
 @media (max-width: 700px) {
-  .eu-flag { top: 14px; right: 14px; gap: 6px; }
+  .eu-flag { top: 14px; right: 14px; }
   .eu-flag-cloth { --w: 76px; }
-  .eu-flag p { font-size: 10.5px; padding: 4px 9px; }
-  .eu-flag-cloth span { animation-name: eu-wave-sm; }
+    .eu-flag-cloth span { animation-name: eu-wave-sm; }
   @keyframes eu-wave-sm { 0%, 100% { transform: translateY(calc(var(--a) * -3px)); } 50% { transform: translateY(calc(var(--a) * 3px)); } }
 }
 [dir="rtl"] .eu-flag { right: auto; left: 3%; }
