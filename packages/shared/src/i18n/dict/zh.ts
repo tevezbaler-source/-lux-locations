@@ -22,6 +22,7 @@ export const zh: Dict = {
   slider: {
     label: "精选城市",
     bestPrice: "最优价格保证",
+    euPartner: "欧洲团队的合作伙伴",
     book: "立即预订",
     prev: "上一张",
     next: "下一张",

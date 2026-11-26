@@ -23,6 +23,7 @@ export const ar: Dict = {
   slider: {
     label: "مدن مميّزة",
     bestPrice: "أفضل سعر مضمون",
+    euPartner: "شريككم للمجموعات القادمة من أوروبا",
     book: "احجز الآن",
     prev: "السابق",
     next: "التالي",

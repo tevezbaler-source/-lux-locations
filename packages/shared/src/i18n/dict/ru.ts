@@ -23,6 +23,7 @@ export const ru: Dict = {
   slider: {
     label: "Избранные города",
     bestPrice: "Гарантия лучшей цены",
+    euPartner: "Партнёр для групп из Европы",
     book: "Забронировать",
     prev: "Назад",
     next: "Вперёд",

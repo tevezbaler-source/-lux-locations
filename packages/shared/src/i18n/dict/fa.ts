@@ -23,6 +23,7 @@ export const fa: Dict = {
   slider: {
     label: "شهرهای برگزیده",
     bestPrice: "تضمین بهترین قیمت",
+    euPartner: "شریک گروه‌های اروپایی",
     book: "همین حالا رزرو کنید",
     prev: "قبلی",
     next: "بعدی",

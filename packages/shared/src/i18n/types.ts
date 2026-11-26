@@ -32,6 +32,8 @@ export interface Dict {
   slider: {
     label: string;
     bestPrice: string;
+    // Ana ekranın köşesindeki AB bayrağının altındaki yazı
+    euPartner: string;
     book: string;
     prev: string;
     next: string;
