@@ -23,6 +23,7 @@ export const ro: Dict = {
   slider: {
     label: "Orașe recomandate",
     bestPrice: "Cel mai bun preț garantat",
+    euPartner: "Partener pentru grupurile din Europa",
     book: "Rezervă acum",
     prev: "Înapoi",
     next: "Înainte",

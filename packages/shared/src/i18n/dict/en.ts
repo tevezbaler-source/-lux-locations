@@ -23,6 +23,7 @@ export const en: Dict = {
   slider: {
     label: "Featured cities",
     bestPrice: "Best Price Guaranteed",
+    euPartner: "Partner for groups from Europe",
     book: "Book Now",
     prev: "Previous",
     next: "Next",

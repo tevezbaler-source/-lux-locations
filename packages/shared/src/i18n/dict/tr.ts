@@ -26,6 +26,7 @@ export const tr: Dict = {
   slider: {
     label: "Öne çıkan şehirler",
     bestPrice: "En İyi Fiyat Garanti",
+    euPartner: "Avrupa'dan gelen grupların partneri",
     book: "Rezervasyon Yapın",
     prev: "Önceki",
     next: "Sonraki",
