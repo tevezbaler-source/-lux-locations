@@ -122,12 +122,10 @@ $auth = lx_auth();
 $logged = $auth && !empty($_SESSION['ok']) && $_SESSION['ok'] === $auth['hash'];
 $langs = lx_langs();
 $pages = lx_pages();
-$sections = array('talepler' => 'Talepler', 'genel' => 'Genel (menü ve alt bilgi)') + $pages + array('ayarlar' => 'Ayarlar');
+$sections = array('genel' => 'Genel (menü ve alt bilgi)') + $pages + array('ayarlar' => 'Ayarlar');
 $lang = isset($_REQUEST['lang']) && isset($langs[$_REQUEST['lang']]) ? $_REQUEST['lang'] : 'tr';
 $page = isset($_REQUEST['page']) && isset($sections[$_REQUEST['page']]) ? $_REQUEST['page'] : '/';
 $open = isset($_REQUEST['open']) ? preg_replace('/[^a-z0-9]/', '', (string) $_REQUEST['open']) : '';
-// Talepler bölümü: site ve uygulama formlarından gelen istekler (veritabanı ../db.php, eski /admin/ paneliyle aynı)
-function lx_requests_db() { require_once dirname(__DIR__) . '/db.php'; return database(); }
 $hotelSel = isset($_REQUEST['hotel']) ? preg_replace('/[^a-z0-9]/', '', (string) $_REQUEST['hotel']) : '';
 $back = array('lang' => $lang, 'page' => $page, 'open' => $open, 'hotel' => $hotelSel);
 
@@ -173,17 +171,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $content = lx_load_content();
     try {
         switch ($action) {
-            case 'req_update':
-                $db = lx_requests_db();
-                $id = (string) $_POST['id'];
-                $st = (string) $_POST['status'];
-                if (!preg_match('/^[a-f0-9]{24}$/D', $id) || !isset(STATUSES[$st])) throw new RuntimeException('Talep bilgileri geçersiz.');
-                $note = substr(trim((string) $_POST['note']), 0, 2000);
-                $db->prepare('UPDATE requests SET status=?, note=?, revision=revision+1 WHERE id=?')->execute(array($st, $note, $id));
-                lx_flash('Talep güncellendi.');
-                $back['open'] = 'r' . $id;
-                if (!empty($_POST['f'])) $back['f'] = (string) $_POST['f'];
-                lx_redirect($back);
             case 'password':
                 if (!password_verify((string) $_POST['current'], $auth['hash'])) throw new RuntimeException('Mevcut şifre yanlış.');
                 if (strlen((string) $_POST['password']) < 8) throw new RuntimeException('Yeni şifre en az 8 karakter olmalı.');
@@ -346,7 +333,7 @@ function q($extra) { global $lang, $page; return '?' . http_build_query(array_me
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Panel · Lux Locations</title>
+<title>Site düzenleme · Lux Locations</title>
 <style>
 :root{--c:#3a5f78;--bg:#f4f6f8;--line:#dde3e8;--mut:#66727c;--ok:#1f7a4d;--err:#b3261e;--warn:#d29b2a}
 *{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:#1c2830}
@@ -409,7 +396,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
 <?php if (!$auth || !$logged): ?>
 <main>
   <div class="card narrow">
-    <h2>Lux Locations · Panel</h2>
+    <h2>Lux Locations · Site düzenleme</h2>
     <?php if ($flash): ?><div class="flash <?= $flash[1] ? 'ok' : 'err' ?>"><?= h($flash[0]) ?></div><?php endif; ?>
     <?php if (!$auth): ?>
       <p class="hint">İlk kurulum: size iletilen kurulum kodunu girin ve bu ekran için bir şifre belirleyin.</p>
@@ -427,6 +414,7 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
         <p><button class="btn">Giriş</button></p>
       </form>
     <?php endif; ?>
+    <p class="hint"><a href="/admin/">← Talepler paneline dön</a></p>
   </div>
 </main>
 <?php else:
@@ -469,8 +457,8 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
     };
 ?>
 <div class="top">
-  <b>Lux Locations · Panel</b>
-  <a href="?page=talepler">Talepler</a>
+  <b>Lux Locations · Site düzenleme</b>
+  <a href="/admin/">Talepler paneli</a>
   <span class="sp"></span>
   <a href="<?= h($url) ?>" target="_blank" rel="noopener">Sayfayı sitede aç ↗</a>
   <form method="post" style="margin:0"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="action" value="logout"><button>Çıkış</button></form>
@@ -480,59 +468,14 @@ h2{margin:0 0 6px;font-size:20px}h3{margin:18px 0 8px;font-size:16px}
     <?php foreach ($sections as $key => $name):
         if ($key === 'ayarlar') echo '<hr>'; ?>
       <a href="?<?= h(http_build_query(array('lang' => $lang, 'page' => $key))) ?>" class="<?= $key === $page ? 'on' : '' ?>"><?= h($key === '/oteller/' ? 'Oteller' : $name) ?></a>
-      <?php if ($key === 'genel' || $key === 'talepler') echo '<hr>'; ?>
+      <?php if ($key === 'genel') echo '<hr>'; ?>
     <?php endforeach; ?>
+    <hr><a href="istatistik.php">İstatistik</a>
   </nav>
   <main>
   <?php if ($flash): ?><div class="flash <?= $flash[1] ? 'ok' : 'err' ?>"><?= h($flash[0]) ?></div><?php endif; ?>
 
-  <?php if ($page === 'talepler'):
-      $f = isset($_GET['f']) && isset(STATUSES[$_GET['f']]) ? $_GET['f'] : '';
-      $rows = array(); $counts = array(); $dbErr = '';
-      try {
-          $db = lx_requests_db();
-          foreach ($db->query('SELECT status, COUNT(*) c FROM requests GROUP BY status') as $c) $counts[$c['status']] = (int) $c['c'];
-          $qq = $db->prepare("SELECT * FROM requests WHERE (?='' OR status=?) ORDER BY created_at DESC LIMIT 200");
-          $qq->execute(array($f, $f));
-          $rows = $qq->fetchAll();
-      } catch (Throwable $e) { $dbErr = 'Talepler okunamadı.'; error_log('Lux requests read failed: ' . get_class($e)); }
-  ?>
-    <div class="card">
-      <h2>Talepler</h2>
-      <p class="hint">Site ve uygulamadaki rezervasyon/teklif formlarından gelen istekler. Müşteri aynı talebi WhatsApp'tan da gönderir.</p>
-      <p style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
-        <a class="btn small <?= $f === '' ? '' : 'sec' ?>" href="?page=talepler">Tümü (<?= array_sum($counts) ?>)</a>
-        <?php foreach (STATUSES as $sk => $sl): ?>
-          <a class="btn small <?= $f === $sk ? '' : 'sec' ?>" href="?page=talepler&amp;f=<?= h($sk) ?>"><?= h($sl) ?> (<?= isset($counts[$sk]) ? $counts[$sk] : 0 ?>)</a>
-        <?php endforeach; ?>
-      </p>
-    </div>
-    <?php if ($dbErr): ?><div class="flash err"><?= h($dbErr) ?></div><?php endif; ?>
-    <?php if (!$rows && !$dbErr): ?><div class="card"><p class="hint">Bu listede talep yok.</p></div><?php endif; ?>
-    <?php foreach ($rows as $r):
-        $when = (new DateTimeImmutable('@' . $r['created_at']))->setTimezone(new DateTimeZone('Europe/Istanbul'))->format('d.m.Y H:i');
-        $phoneDigits = preg_replace('/\D/', '', $r['phone']);
-    ?>
-      <details class="blk" id="r<?= h($r['id']) ?>" <?= $open === 'r' . $r['id'] ? 'open' : '' ?>>
-        <summary><span><?= h($r['name']) ?> · <span style="font-weight:500"><?= h(CATEGORIES[$r['category']] ?? $r['category']) ?></span></span><span class="cnt"><?= h(STATUSES[$r['status']] ?? $r['status']) ?> · <?= h($when) ?></span></summary>
-        <div style="padding:0 18px 16px">
-          <p>
-            <?php if ($r['phone']): ?>Telefon: <a href="tel:<?= h($r['phone']) ?>"><?= h($r['phone']) ?></a><?php if ($phoneDigits): ?> · <a href="https://wa.me/<?= h($phoneDigits) ?>" target="_blank" rel="noopener">WhatsApp ↗</a><?php endif; ?><br><?php endif; ?>
-            <?php if ($r['email']): ?>E-posta: <a href="mailto:<?= h($r['email']) ?>"><?= h($r['email']) ?></a><br><?php endif; ?>
-            <?php if ($r['travel_date']): ?>Tarih: <?= h($r['travel_date']) ?><br><?php endif; ?>
-          </p>
-          <pre style="white-space:pre-wrap;font:inherit;background:#f4f6f8;border-radius:8px;padding:10px;margin:8px 0" dir="auto"><?= h($r['message']) ?></pre>
-          <form method="post">
-            <?= $hidden ?><input type="hidden" name="action" value="req_update"><input type="hidden" name="id" value="<?= h($r['id']) ?>"><input type="hidden" name="f" value="<?= h($f) ?>">
-            <label>Durum</label>
-            <select name="status"><?php foreach (STATUSES as $sk => $sl): ?><option value="<?= h($sk) ?>" <?= $sk === $r['status'] ? 'selected' : '' ?>><?= h($sl) ?></option><?php endforeach; ?></select>
-            <label>İç not</label><textarea name="note" rows="2" maxlength="2000"><?= h($r['note']) ?></textarea>
-            <p><button class="btn">Kaydet</button></p>
-          </form>
-        </div>
-      </details>
-    <?php endforeach; ?>
-  <?php elseif ($page === 'ayarlar'): ?>
+  <?php if ($page === 'ayarlar'): ?>
     <div class="card"><h2>Ayarlar</h2>
       <form method="post"><?= $hidden ?><input type="hidden" name="action" value="password">
         <label>Mevcut şifre</label><input type="password" name="current" required autocomplete="current-password">

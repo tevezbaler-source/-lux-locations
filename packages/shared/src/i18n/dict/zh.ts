@@ -22,6 +22,7 @@ export const zh: Dict = {
   slider: {
     label: "精选城市",
     bestPrice: "最优价格保证",
+    euPartner: "欧洲团队的合作伙伴",
     book: "立即预订",
     prev: "上一张",
     next: "下一张",
@@ -154,5 +155,5 @@ export const zh: Dict = {
     empty: "我们的酒店列表即将上线。您现在就可以发送需求。",
     whatsappMessage: "您好，我想了解酒店住宿的信息。",
   },
-  footer: { contact: "联系我们", follow: "关注我们", rights: "版权所有 · TÜRSAB 成员" },
+  footer: { contact: "联系我们", follow: "关注我们", rights: "版权所有 · TÜRSAB 成员", privacy: "隐私政策", kvkk: "个人数据与Cookie" },
 };

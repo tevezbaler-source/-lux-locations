@@ -144,7 +144,7 @@ function lx_hotels_shell($lang, $content)
     $head = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $head);
     $head = preg_replace('#<link\b[^>]*\bas="script"[^>]*/?>#i', '', $head);
     $head = preg_replace('#<title>.*?</title>#is', '', $head);
-    $head = preg_replace('#<meta\b[^>]*(name="description"|property="og:[a-z:]+")[^>]*/?>#i', '', $head);
+    $head = preg_replace('#<meta\b[^>]*(name="description"|property="og:[a-z:_]+"|name="twitter:[a-z:]+")[^>]*/?>#i', '', $head);
     $head = preg_replace('#<link\b[^>]*rel="(canonical|alternate)"[^>]*/?>#i', '', $head);
     $head = preg_replace('#<link\b[^>]*hotels-v1\.css[^>]*/?>#i', '', $head);
     $head = preg_replace('#<noscript\b.*?</noscript>#is', '', $head);
@@ -159,22 +159,53 @@ function lx_fix_lang_links($header, $base)
     }, $header);
 }
 
-function lx_hotels_page($shell, $lang, $base, $title, $desc, $image, $main)
+// Paylaşım önizlemesi için dil kodları (Open Graph)
+function lx_og_locale($lang)
+{
+    $m = array('tr' => 'tr_TR', 'en' => 'en_US', 'ar' => 'ar_AR', 'ru' => 'ru_RU', 'de' => 'de_DE', 'fr' => 'fr_FR',
+        'es' => 'es_ES', 'it' => 'it_IT', 'zh' => 'zh_CN', 'fa' => 'fa_IR', 'ro' => 'ro_RO');
+    return isset($m[$lang]) ? $m[$lang] : 'en_US';
+}
+
+// Google için yapılandırılmış veri (JSON-LD); "<" kaçırılır.
+function lx_json_ld($data)
+{
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) return '';
+    return '<script type="application/ld+json">' . str_replace('<', '\u003c', $json) . '</script>';
+}
+
+function lx_hotels_page($shell, $lang, $base, $title, $desc, $image, $main, $ld = null)
 {
     $e = 'lx_esc_html';
     $abs = 'https://luxlocationstours.com';
-    $meta = '<title>' . $e($title) . ' | Lux Locations Tours</title>'
+    $url = $abs . lx_page_path($lang, $base);
+    $img = $image !== '' ? (strpos($image, 'http') === 0 ? $image : $abs . $image) : '';
+    $full = $title . ' | Lux Locations Tours';
+    $meta = '<title>' . $e($full) . '</title>'
         . '<meta name="description" content="' . $e($desc) . '"/>'
-        . '<link rel="canonical" href="' . $e($abs . lx_page_path($lang, $base)) . '"/>';
+        . '<link rel="canonical" href="' . $e($url) . '"/>';
     foreach (array_keys(lx_langs()) as $l) $meta .= '<link rel="alternate" hreflang="' . $l . '" href="' . $e($abs . lx_page_path($l, $base)) . '"/>';
-    $meta .= '<link rel="alternate" hreflang="x-default" href="' . $e($abs . $base) . '"/>'
-        . '<meta property="og:title" content="' . $e($title) . '"/><meta property="og:description" content="' . $e($desc) . '"/>'
-        . ($image !== '' ? '<meta property="og:image" content="' . $e(strpos($image, 'http') === 0 ? $image : $abs . $image) . '"/>' : '')
+    $meta .= '<link rel="alternate" hreflang="x-default" href="' . $e($abs . lx_page_path('en', $base)) . '"/>'
+        . '<meta property="og:type" content="website"/><meta property="og:site_name" content="Lux Locations Tours"/>'
+        . '<meta property="og:url" content="' . $e($url) . '"/><meta property="og:locale" content="' . lx_og_locale($lang) . '"/>'
+        . '<meta property="og:title" content="' . $e($full) . '"/><meta property="og:description" content="' . $e($desc) . '"/>'
+        . ($img !== '' ? '<meta property="og:image" content="' . $e($img) . '"/>' : '')
+        . '<meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="' . $e($full) . '"/>'
+        . '<meta name="twitter:description" content="' . $e($desc) . '"/>'
+        . ($img !== '' ? '<meta name="twitter:image" content="' . $e($img) . '"/>' : '')
+        . ($ld ? lx_json_ld($ld) : '')
         . '<link rel="stylesheet" href="/assets/hotels/hotels-v1.css?v=20261104-2"/>'
         . '<style>.hotel-inline-rooms{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px;margin:18px 0 24px}.hotel-gallery figure[hidden]{display:none}[dir=rtl] .hotel-breadcrumb span{display:inline-block;transform:scaleX(-1)}</style>';
     $header = lx_fix_lang_links($shell['header'], $base);
     return '<!DOCTYPE html>' . $shell['open'] . '<head>' . $shell['head'] . $meta . '</head><body>'
-        . $header . $main . $shell['footer'] . lx_hotels_script() . '</body></html>';
+        . $header . $main . $shell['footer'] . lx_hotels_script() . lx_hit_script() . '</body></html>';
+}
+
+// Çerezsiz ziyaret sayacı (lx-content/hit.php); sitedeki HIT_SCRIPT ile aynı (apps/web/src/views/seo.tsx)
+function lx_hit_script()
+{
+    return '<script>(function(){var u="/lx-content/hit.php";function s(o){try{var d=JSON.stringify(o);if(navigator.sendBeacon)navigator.sendBeacon(u,d);else fetch(u,{method:"POST",body:d,keepalive:true})}catch(e){}}s({p:location.pathname,r:document.referrer,w:innerWidth});document.addEventListener("click",function(v){var a=v.target&&v.target.closest&&v.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"",e=/^https:\\/\\/(wa\\.me|api\\.whatsapp\\.com)\\//.test(h)?"wa":h.indexOf("tel:")===0?"tel":h.indexOf("mailto:")===0?"mail":"";if(e)s({p:location.pathname,e:e})},true)})()</script>';
 }
 
 function lx_hotels_script()
@@ -384,7 +415,11 @@ function lx_render_hotels($path, $content)
     if ($shell === null) return null;
     $ui = lx_hotel_ui($lang);
     if ($slug === '') {
-        return lx_hotels_page($shell, $lang, '/oteller/', $ui['hotels'], $ui['list_meta'], $hotels[0]['cover'], lx_hotels_list_main($hotels, $lang, $ui, $shell['wa']));
+        $items = array();
+        foreach ($hotels as $i => $h) $items[] = array('@type' => 'ListItem', 'position' => $i + 1, 'name' => $h['name'],
+            'url' => 'https://luxlocationstours.com' . lx_hotel_url($lang, $h['slug']));
+        $ld = array('@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => $ui['hotels'], 'itemListElement' => $items);
+        return lx_hotels_page($shell, $lang, '/oteller/', $ui['hotels'], $ui['list_meta'], $hotels[0]['cover'], lx_hotels_list_main($hotels, $lang, $ui, $shell['wa']), $ld);
     }
     $hotel = null;
     foreach ($hotels as $h) if ($h['slug'] === $slug) $hotel = $h;
@@ -392,7 +427,32 @@ function lx_render_hotels($path, $content)
     list($city, $parts) = lx_hotel_parts($hotel, $lang);
     $title = $hotel['name'] . ($hotel['stars'] > 0 ? ' ' . lx_stars($hotel['stars']) . ' — ' . sprintf($ui['stars_short'], $hotel['stars']) : '');
     $desc = sprintf($ui['detail_meta'], $hotel['name'], $hotel['stars'], $parts ? $parts[0] : $city);
-    return lx_hotels_page($shell, $lang, '/oteller/' . $slug . '/', $title, $desc, $hotel['cover'], lx_hotel_detail_main($hotel, $lang, $ui, $shell['wa']));
+    return lx_hotels_page($shell, $lang, '/oteller/' . $slug . '/', $title, $desc, $hotel['cover'], lx_hotel_detail_main($hotel, $lang, $ui, $shell['wa']), lx_hotel_ld($hotel, $lang, $city, $desc));
+}
+
+// Otel sayfasının yapılandırılmış verisi (schema.org Hotel)
+function lx_hotel_ld($h, $lang, $city, $desc)
+{
+    $abs = 'https://luxlocationstours.com';
+    $imgs = array();
+    if ($h['cover'] !== '') $imgs[] = $h['cover'];
+    foreach ($h['galleries'] as $g) foreach ($g['photos'] as $p) if (count($imgs) < 8) $imgs[] = $p;
+    foreach ($imgs as $k => $p) $imgs[$k] = strpos($p, 'http') === 0 ? $p : $abs . $p;
+    $long = trim(lx_tr_field($h['description'], $lang));
+    $ld = array('@context' => 'https://schema.org', '@type' => 'Hotel', 'name' => $h['name'],
+        'url' => $abs . lx_hotel_url($lang, $h['slug']), 'description' => $long !== '' ? $long : $desc);
+    if ($imgs) $ld['image'] = $imgs;
+    if ($h['stars'] > 0) $ld['starRating'] = array('@type' => 'Rating', 'ratingValue' => (int) $h['stars']);
+    $addr = array('@type' => 'PostalAddress', 'addressCountry' => 'TR');
+    if ($h['address'] !== '') $addr['streetAddress'] = $h['address'];
+    if ($city !== '') $addr['addressLocality'] = $city;
+    $ld['address'] = $addr;
+    $amen = lx_tr_lines($h['amenities'], $lang);
+    if ($amen) {
+        $ld['amenityFeature'] = array();
+        foreach ($amen as $a) $ld['amenityFeature'][] = array('@type' => 'LocationFeatureSpecification', 'name' => $a, 'value' => true);
+    }
+    return $ld;
 }
 
 // ---- Ana sayfa: kayan otel şeridi (her dilde) ----

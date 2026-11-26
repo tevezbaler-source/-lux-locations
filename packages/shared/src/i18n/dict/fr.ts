@@ -23,6 +23,7 @@ export const fr: Dict = {
   slider: {
     label: "Villes à la une",
     bestPrice: "Meilleur prix garanti",
+    euPartner: "Partenaire des groupes venus d'Europe",
     book: "Réserver",
     prev: "Précédent",
     next: "Suivant",
@@ -157,5 +158,5 @@ export const fr: Dict = {
     empty: "Notre liste d’hôtels sera bientôt disponible ici. Vous pouvez déjà nous envoyer votre demande.",
     whatsappMessage: "Bonjour, je souhaite des informations sur un hébergement à l’hôtel.",
   },
-  footer: { contact: "Contact", follow: "Suivez-nous", rights: "Tous droits réservés · Membre du TÜRSAB" },
+  footer: { contact: "Contact", follow: "Suivez-nous", rights: "Tous droits réservés · Membre du TÜRSAB", privacy: "Confidentialité", kvkk: "Données personnelles et cookies" },
 };

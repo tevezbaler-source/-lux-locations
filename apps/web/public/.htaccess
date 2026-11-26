@@ -1,3 +1,55 @@
+# BEGIN lux-seo (Site-SEO-Yukle.ps1 bu bloğu canlı .htaccess'in başına koyar; elle değiştirmeyin)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Site haritası: sunucuda üretilir (panelden eklenen oteller dahil)
+  RewriteRule ^sitemap\.xml$ lx-content/sitemap.php [L]
+
+  # 2026-11'de silinen saldırgan dosyalarının spam adresleri: Google'a "kalıcı olarak yok" (410)
+  RewriteRule ^google\.(asp|php)(/.*)?$ - [G,L]
+  RewriteRule ^(404\.asp|sitemap\.txt)$ - [G,L]
+
+  # Eski sitenin sayfaları: yeni karşılıklarına kalıcı (301) yönlendirme
+  RewriteRule ^index-eng\.html$ /en/ [R=301,L]
+  RewriteRule ^yeni/?$ /en/ [R=301,L]
+  RewriteRule ^hakkimizda\.html$ /index.html#hakkimizda [R=301,NE,L]
+  RewriteRule ^about\.html$ /en/#hakkimizda [R=301,NE,L]
+  RewriteRule ^iletisim\.html$ /index.html#iletisim [R=301,NE,L]
+  RewriteRule ^contact\.html$ /en/#iletisim [R=301,NE,L]
+  RewriteRule ^hizmetlerimiz\.html$ /index.html#hizmetler [R=301,NE,L]
+  RewriteRule ^services\.html$ /en/#hizmetler [R=301,NE,L]
+  RewriteRule ^(rezervasyon\.html|rezervasyon\.php|rezervasyonform\.php)$ /index.html#rezervasyon [R=301,NE,L]
+  RewriteRule ^reservation\.php$ /en/#rezervasyon [R=301,NE,L]
+  RewriteRule ^turkiye\.html$ /destinasyonlar/ [R=301,L]
+  RewriteRule ^turkiye-eng\.html$ /en/destinasyonlar/ [R=301,L]
+</IfModule>
+
+# Güvenlik başlıkları
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), geolocation=(), payment=(), microphone=(self)"
+</IfModule>
+
+# Hız: sıkıştırma ve tarayıcı önbelleği
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/xml application/javascript application/json image/svg+xml
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType video/mp4 "access plus 30 days"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+</IfModule>
+# END lux-seo
+
 # luxlocationstours.com (Apache, paylaşımlı Linux hosting) için statik site ayarları
 DirectoryIndex index.html
 ErrorDocument 404 /404.html

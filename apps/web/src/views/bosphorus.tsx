@@ -1,8 +1,9 @@
 import { BOSPHORUS_DINNER as tour, whatsappLink } from "@lux/shared";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { fill, getDict, type Locale } from "@/i18n";
+import { fill, getDict, localePath, type Locale } from "@/i18n";
 import { pageMetadata } from "./meta";
+import { absUrl, DEFAULT_SHARE_IMAGE, JsonLd, shortText, SITE_NAME, SITE_URL } from "./seo";
 
 const PATH = `/${tour.slug}`;
 // Tekne bölümünün başlığı her dilde aynı (Ogün'ün isteği, 2026-11-04).
@@ -15,7 +16,7 @@ const boatPhotos = boat
 
 export function bosphorusMetadata(lang: Locale) {
   const t = getDict(lang).bosphorus;
-  return pageMetadata(lang, PATH, `${t.title} | Lux Locations`, t.intro);
+  return pageMetadata(lang, PATH, `${t.title} | ${SITE_NAME}`, shortText(t.intro), photos[0] ?? DEFAULT_SHARE_IMAGE);
 }
 
 export function BosphorusView({ lang }: { lang: Locale }) {
@@ -25,6 +26,19 @@ export function BosphorusView({ lang }: { lang: Locale }) {
 
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "TouristTrip",
+          name: t.title,
+          description: t.intro,
+          url: absUrl(localePath(lang, `${PATH}/`)),
+          image: photos.slice(0, 6).map(absUrl),
+          touristType: "Bosphorus dinner cruise",
+          itinerary: { "@type": "Place", name: "Bosphorus, Istanbul" },
+          provider: { "@id": `${SITE_URL}/#organization` },
+        }}
+      />
       <SiteHeader lang={lang} path={PATH} ctaHref={wa} ctaLabel={d.cta.request} />
 
       <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(11,29,37,.7), rgba(11,29,37,.1)), url('${photos[0]}')` }}>

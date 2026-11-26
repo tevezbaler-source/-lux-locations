@@ -32,6 +32,8 @@ export interface Dict {
   slider: {
     label: string;
     bestPrice: string;
+    // Ana ekranın köşesindeki AB bayrağının altındaki yazı
+    euPartner: string;
     book: string;
     prev: string;
     next: string;
@@ -81,7 +83,7 @@ export interface Dict {
     ctaButton: string;
   };
   hotels: { title: string; eyebrow: string; empty: string; whatsappMessage: string };
-  footer: { contact: string; follow: string; rights: string };
+  footer: { contact: string; follow: string; rights: string; privacy: string; kvkk: string };
 }
 
 interface Slide {

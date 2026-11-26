@@ -36,6 +36,10 @@ export function SiteFooter({ lang }: { lang: Locale }) {
       <div className="foot-copy">
         <span dir="ltr">© 2022–2026 Lux Locations Tours</span> · {t.rights}
         {" · "}
+        <a href="/gizlilik/">{t.privacy}</a>
+        {" · "}
+        <a href="/kvkk/">{t.kvkk}</a>
+        {" · "}
         {/* Ekip için yönetim paneli (talepler + site düzenleme, tek giriş); müşteriye yönelik değil, bu yüzden sade */}
         <a href="/admin/site/" rel="nofollow" className="foot-team">Ekip girişi</a>
       </div>
