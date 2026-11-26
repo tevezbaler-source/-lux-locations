@@ -875,3 +875,39 @@ function hotel_region_guess(string $name): ?string {
     if (str_contains($t, ' old ') && str_contains($t, ' city ')) return 'Sultanahmet';
     return null;
 }
+
+/** Sunucuya (data/yildiz-semt.json: [{name, stars, region}]) bırakılan yıldız/semt listesini, otel yetkisi olan biri paneli açınca bir kez işler.
+ *  Yıldız yalnız boşsa yazılır; semt boşsa ya da yalnız addan tahmin edilmişse yazılır. */
+function hotels_stars_pending(): ?array {
+    $f = dirname(__DIR__) . '/data/yildiz-semt.json';
+    if (!is_file($f) || !can('hotel')) return null;
+    $done = $f . '.' . date('Ymd-His') . '.yapildi';
+    if (!@rename($f, $done)) return null;
+    $list = json_decode((string)file_get_contents($done), true);
+    if (!is_array($list)) return null;
+    $panel = q_all('SELECT id, name, stars, region FROM hotels');
+    $byN = []; $byT = [];
+    foreach ($panel as $h) { $byN[norm_name($h['name'])] = $h; $t = hotel_tokens($h['name']); if ($t) $byT[implode(' ', $t)] = $h; }
+    $res = ['stars' => 0, 'region' => 0, 'missing' => []]; $log = [];
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        foreach ($list as $r) {
+            $name = hotel_pretty_name((string)($r['name'] ?? ''));
+            $h = $byN[norm_name($name)] ?? $byT[implode(' ', hotel_tokens($name))] ?? null;
+            if (!$h) { $res['missing'][] = $r['name'] ?? ''; continue; }
+            $set = [];
+            $st = (int)($r['stars'] ?? 0);
+            if ($h['stars'] === null && $st >= 1 && $st <= 5) { $set['stars'] = $st; $res['stars']++; }
+            $rg = trim((string)($r['region'] ?? ''));
+            if ($rg !== '' && (trim((string)$h['region']) === '' || $h['region'] === hotel_region_guess($h['name'])) && $h['region'] !== $rg) { $set['region'] = mb_substr($rg, 0, 80); $res['region']++; }
+            if (!$set) continue;
+            $u = current_user();
+            $sql = 'UPDATE hotels SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($set))) . ', updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ?';
+            $pdo->prepare($sql)->execute([...array_values($set), $u['id'], now(), (int)$h['id']]);
+            $log[] = ['id' => (int)$h['id'], 'otel' => $h['name']] + $set;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+    if ($log) audit('otel', null, 'duzenle', "Bakanlık listesinden yıldız/semt: {$res['stars']} yıldız, {$res['region']} semt", null, ['oteller' => $log, 'bulunamayan' => $res['missing']]);
+    return $res;
+}
