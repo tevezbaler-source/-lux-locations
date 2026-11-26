@@ -40,6 +40,7 @@ try {
     // Girişsiz erişilebilenler
     if ($a === 'session') {
         $u = current_user();
+        if ($u && empty($_SESSION['egitim'])) { try { $ys = hotels_stars_pending(); if ($ys) error_log('yildiz-semt: ' . json_encode(['stars' => $ys['stars'], 'region' => $ys['region'], 'missing' => count($ys['missing'])])); } catch (Throwable $e) { error_log('yildiz-semt: ' . $e->getMessage()); } }
         out([
             'csrf' => $_SESSION['csrf'], 'setup' => !users_exist(),
             'user' => $u ? ['id' => (int)$u['id'], 'name' => $u['name'], 'username' => $u['username'], 'role' => $u['role'], 'role_name' => ROLES[$u['role']], 'perms' => PERMS[$u['role']]] : null,
