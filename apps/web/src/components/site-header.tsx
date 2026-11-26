@@ -1,6 +1,5 @@
 import { RESERVATIONS } from "@lux/shared";
 import { getDict, LOCALES, localePath, type Locale } from "@/i18n";
-import { EuFlag } from "./eu-flag";
 
 // Kaydırırken ekranla birlikte gelen (sticky) üst şerit + altındaki gezinme satırı.
 // `path` dil seçicinin aynı sayfanın diğer dildeki karşılığına gitmesi için kullanılır.
@@ -45,12 +44,9 @@ export function SiteHeader({ lang, path, ctaHref, ctaLabel }: { lang: Locale; pa
             <small>LOCATIONS TOURS</small>
           </span>
         </a>
-        <div className="bar-end">
-          <EuFlag label={t.slider.euPartner} />
-          <a className="btn" href={ctaHref}>
-            {ctaLabel}
-          </a>
-        </div>
+        <a className="btn" href={ctaHref}>
+          {ctaLabel}
+        </a>
       </div>
       <nav className="site-nav" aria-label={t.nav.aria}>
         {nav.map((item) => (

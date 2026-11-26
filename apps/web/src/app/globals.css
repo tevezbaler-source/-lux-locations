@@ -26,6 +26,7 @@ p { font-size: 14px; line-height: 1.9; color: var(--muted); }
 
 .site-head { position: sticky; top: 0; z-index: 50; }
 .site-bar { height: 84px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 0 6%; background: var(--blue); }
+.site-bar .btn { justify-self: end; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand img { display: block; width: 56px; height: 56px; }
 .brand span { font-family: var(--font-sans), sans-serif; font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: 3px; background: var(--copper-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -149,20 +150,24 @@ footer { margin-top: 90px; padding: 40px 7%; border-top: 1px solid var(--line); 
 .intro h1 { font: 500 clamp(36px, 4.6vw, 64px)/1.12 var(--font-serif), serif; letter-spacing: -1px; margin: 18px 0; color: var(--ink); }
 .intro h1 em { font-weight: 400; color: var(--gold); }
 .intro p { max-width: 520px; margin: auto; }
-/* Üst şeritte logo ile "Talep oluştur" arasında dalgalanan AB bayrağı: dikey şeritler gecikmeli inip kalkar */
-.bar-end { justify-self: stretch; display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
-.bar-end .eu-flag { margin: 0 auto; }
-.eu-flag { --w: 66px; --n: 24; direction: ltr; width: var(--w); height: calc(var(--w) * 2 / 3); display: flex; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .3)); }
-.eu-flag span { position: relative; flex: 1 1 0; height: 100%; margin-right: -.5px; background-image: var(--eu-img); background-size: var(--w) 100%; background-position: calc(var(--i) * var(--w) / var(--n) * -1) 0; animation: eu-wave 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -.09s); }
-.eu-flag span::after { content: ""; position: absolute; inset: 0; background: #000; opacity: 0; animation: eu-shade 2.6s ease-in-out infinite; animation-delay: inherit; }
-.eu-flag span:first-child { border-radius: 2px 0 0 2px; }
-.eu-flag span:last-child { border-radius: 0 2px 2px 0; }
-@keyframes eu-wave { 0%, 100% { transform: translateY(calc(var(--a) * -5%)); } 50% { transform: translateY(calc(var(--a) * 5%)); } }
+/* Ana ekranın sağ üst köşesinde dalgalanan AB bayrağı */
+.eu-flag { position: absolute; top: 28px; right: 3%; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .32)); }
+.eu-flag-cloth { --w: 150px; --n: 24; direction: ltr; width: var(--w); height: calc(var(--w) * 2 / 3); display: flex; }
+.eu-flag-cloth span { position: relative; flex: 1 1 0; height: 100%; margin-right: -.5px; background-image: var(--eu-img); background-size: var(--w) 100%; background-position: calc(var(--i) * var(--w) / var(--n) * -1) 0; animation: eu-wave 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -.09s); }
+.eu-flag-cloth span::after { content: ""; position: absolute; inset: 0; background: #000; opacity: 0; animation: eu-shade 2.6s ease-in-out infinite; animation-delay: inherit; }
+.eu-flag-cloth span:first-child { border-radius: 3px 0 0 3px; }
+.eu-flag-cloth span:last-child { border-radius: 0 3px 3px 0; }
+@keyframes eu-wave { 0%, 100% { transform: translateY(calc(var(--a) * -5px)); } 50% { transform: translateY(calc(var(--a) * 5px)); } }
 @keyframes eu-shade { 0%, 100% { opacity: 0; } 50% { opacity: .22; } }
-@media (max-width: 700px) { .bar-end { gap: 10px; } .bar-end .eu-flag { margin: 0; } .eu-flag { --w: 36px; } }
-/* Dar telefonda üst şerit logo için yetmiyor; bayrak gizlenir */
-@media (max-width: 520px) { .bar-end .eu-flag { display: none; } }
-@media (prefers-reduced-motion: reduce) { .eu-flag span, .eu-flag span::after { animation: none; } }
+@media (max-width: 700px) {
+  .eu-flag { top: 14px; right: 14px; }
+  .eu-flag-cloth { --w: 76px; }
+    .eu-flag-cloth span { animation-name: eu-wave-sm; }
+  @keyframes eu-wave-sm { 0%, 100% { transform: translateY(calc(var(--a) * -3px)); } 50% { transform: translateY(calc(var(--a) * 3px)); } }
+}
+[dir="rtl"] .eu-flag { right: auto; left: 3%; }
+@media (max-width: 700px) { [dir="rtl"] .eu-flag { left: 14px; } }
+@media (prefers-reduced-motion: reduce) { .eu-flag-cloth span, .eu-flag-cloth span::after { animation: none; } }
 @media (max-width: 700px) { .slider-arrow { width: 38px; height: 38px; } }
 @media (prefers-reduced-motion: reduce) { .slide-text > * { animation-duration: .01s; } .slide { transition: none; } }
 
