@@ -6,3 +6,7 @@
 </IfModule>
 Options -Indexes
 DirectoryIndex index.php
+# Kurulum notları ve git dosyaları tarayıcıdan okunamaz
+<IfModule mod_alias.c>
+    RedirectMatch 403 /(README\.md|\.gitignore|\.git/.*)$
+</IfModule>

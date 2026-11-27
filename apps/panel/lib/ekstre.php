@@ -247,9 +247,17 @@ function ekstre_kaydet(array $in): array {
         $id = (int)insert_row('hotel_statements', $row + stamp_new());
     }
     $cur = $st['currency'] ?: '';
+    // Ödendi ise otel carisine ödeme olarak işlenir (bir kez)
+    $cariye = false;
+    if ($status === 'odendi' && !empty($in['cariye_isle']) && $hotelId && $row['due'] > 0 && in_array($cur, CURRENCIES, true)
+        && !q_val('SELECT id FROM hotel_payments WHERE statement_id = ? AND deleted = 0', [$id])) {
+        otel_odeme_kaydet(['hotel_id' => $hotelId, 'amount' => (string)$row['due'], 'currency' => $cur, 'pay_date' => $row['paid_at'], 'method' => 'havale',
+            'note' => 'Ekstre #' . $id . ($row['note'] ? ' · ' . $row['note'] : ''), 'statement_id' => $id]);
+        $cariye = true;
+    }
     audit('odeme', $id, $status === 'odendi' ? 'odendi' : 'kaydet', ($row['hotel_name'] ?: 'Otel') . ' ekstresi ' . ($status === 'odendi' ? 'ödendi' : 'kontrol edildi') . ': ' . fmt_num($row['due']) . " $cur" . ($r['errors'] ? " ({$r['errors']} fark)" : ''), null, ['ekstre' => $id, 'not' => $row['note']]);
     unset($row['data']);
-    return ['id' => $id] + $row;
+    return ['id' => $id, 'cariye_islendi' => $cariye] + $row;
 }
 
 function ekstre_liste(): array {

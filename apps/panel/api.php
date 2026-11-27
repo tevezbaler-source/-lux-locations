@@ -15,6 +15,9 @@ require __DIR__ . '/lib/ekstre.php';
 require __DIR__ . '/lib/cari.php';
 require __DIR__ . '/lib/site_otel.php';
 require __DIR__ . '/lib/oneri.php';
+require __DIR__ . '/lib/otelcari.php';
+require __DIR__ . '/lib/operasyon.php';
+require __DIR__ . '/lib/portal.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -65,6 +68,11 @@ try {
 
     $u = current_user();
     if (!$u) out(['error' => 'Oturum kapandı, tekrar giriş yapın.', 'login' => true], 401);
+    // Acente portalı kullanıcısı yalnız portal isteklerini yapabilir
+    if ($u['role'] === 'acente') {
+        if (!in_array($a, PORTAL_ACTIONS, true)) out(['error' => 'Bu işlem için yetkiniz yok.'], 403);
+        $_SESSION['egitim'] = false;
+    }
     // Günlük yedek ve opsiyon hatırlatması: cevap gittikten sonra, günde bir kez
     register_shutdown_function(function () {
         if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
@@ -84,7 +92,37 @@ try {
                 if (empty($_SESSION['egitim'])) { try { hotels_stars_pending(); } catch (Throwable $e) { error_log('yildiz-semt: ' . $e->getMessage()); } }
                 $hiddenN = 0;
                 $gridH = hotels_grid($from, $to, trim($_GET['q'] ?? ''), trim($_GET['region'] ?? ''), !empty($_GET['hepsi']), $hiddenN);
-                out(['hotels' => $gridH, 'hidden' => $hiddenN, 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan()]);
+                $rel = []; try { $rel = release_yaklasan(); } catch (Throwable $e) { error_log('release: ' . $e->getMessage()); }
+                out(['hotels' => $gridH, 'hidden' => $hiddenN, 'from' => $from, 'to' => $to, 'regions' => $regions, 'rate' => latest_rate(), 'tcmb' => tcmb_rates(), 'options' => opsiyon_yaklasan(), 'releases' => $rel]);
+            case 'kontenjan':
+                $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
+                $to = clean_date($_GET['to'] ?? '') ?: date_add_days($from, 31);
+                if ($to <= $from || nights_between($from, $to) > 120) throw new ApiError('En fazla 120 günlük aralık seçilebilir.');
+                out(kontenjan_ozet($from, $to));
+            case 'otel_cari_liste':
+                out(['hotels' => otel_cari_liste()]);
+            case 'otel_cari':
+                $h = hotel_get((int)($_GET['id'] ?? 0));
+                out(['hotel' => ['id' => (int)$h['id'], 'name' => $h['name'], 'region' => $h['region']], 'cari' => otel_cari((int)$h['id'])]);
+            case 'operasyon':
+                $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
+                $to = clean_date($_GET['to'] ?? '') ?: date_add_days($from, 7);
+                if ($to <= $from || nights_between($from, $to) > 120) throw new ApiError('En fazla 120 günlük aralık seçilebilir.');
+                out(['rows' => operasyon_liste($from, $to, (string)($_GET['q'] ?? '')), 'from' => $from, 'to' => $to]);
+            case 'faturalar':
+            case 'fatura_csv':
+                $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-01');
+                $to = clean_date($_GET['to'] ?? '') ?: date('Y-m-01', strtotime('+1 month'));
+                if ($to <= $from) throw new ApiError('Bitiş tarihi başlangıçtan sonra olmalı.');
+                $durum = in_array($_GET['durum'] ?? '', ['kesildi', 'kesilmedi'], true) ? $_GET['durum'] : '';
+                if ($a === 'fatura_csv') fatura_csv($from, $to, $durum);
+                out(fatura_liste($from, $to, $durum) + ['from' => $from, 'to' => $to]);
+            case 'portal':
+                out(portal_ozet());
+            case 'portal_grup':
+                out(portal_grup((int)($_GET['id'] ?? 0)));
+            case 'portal_talepler':
+                out(portal_talepler_liste());
             case 'hotel':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-m-d');
                 $days = max(7, min(92, (int)($_GET['days'] ?? 31)));
@@ -133,7 +171,12 @@ try {
                 out(['tcmb' => tcmb_rates(), 'rates' => q_all('SELECT f.*, (SELECT user_name FROM audit_log WHERE entity = \'kur\' AND entity_id = f.id ORDER BY id LIMIT 1) AS user_name FROM fx_rates f ORDER BY rate_date DESC, id DESC LIMIT 100')]);
             case 'contract':
                 $c = contract_for((int)($_GET['hotel_id'] ?? 0), clean_date($_GET['date'] ?? '') ?: date('Y-m-d'));
-                out(['contract' => $c, 'rate' => latest_rate(), 'next_code' => next_code()]);
+                $bid = (int)($_GET['booking_id'] ?? 0);
+                $bd = $bid ? (substr((string)q_val('SELECT created_at FROM bookings WHERE id = ?', [$bid]), 0, 10) ?: date('Y-m-d')) : date('Y-m-d');
+                $prices = null;
+                if ($c) foreach (ROOM_TYPES as $t) $prices[$t] = contract_effective($c, $t, $bd);
+                $agMk = !empty($_GET['agency_id']) ? q_val('SELECT markup_pct FROM agencies WHERE id = ?', [(int)$_GET['agency_id']]) : null;
+                out(['contract' => $c, 'prices' => $prices, 'eb' => $c ? contract_eb_active($c, $bd) : false, 'rate' => latest_rate(), 'next_code' => next_code(), 'markup_pct' => $agMk === null ? null : (float)$agMk]);
             case 'next_code':
                 out(['code' => next_code()]);
             case 'changes':
@@ -153,7 +196,7 @@ try {
                 out(['rows' => $rows, 'users' => array_column(q_all('SELECT DISTINCT user_name FROM audit_log WHERE user_name IS NOT NULL ORDER BY user_name'), 'user_name')]);
             case 'users':
                 need('users');
-                out(['users' => q_all('SELECT id, username, name, role, active, created_at, last_login FROM users ORDER BY active DESC, name', [], db_main())]);
+                out(['users' => q_all('SELECT u.id, u.username, u.name, u.role, u.agency_id, a.name AS agency_name, u.active, u.created_at, u.last_login FROM users u LEFT JOIN agencies a ON a.id = u.agency_id ORDER BY u.active DESC, u.name', [], db_main())]);
             case 'notes':
                 out(['notes' => notes_list(!empty($_GET['all']))]);
             case 'talepler':
@@ -223,18 +266,18 @@ try {
             db_training();
             out(['ok' => true]);
         case 'calc':
-            $b = booking_input($in);
+            $b = booking_input($in) + ['id' => clean_int($in['id'] ?? null)];
             out(calc_booking($b) + ['next_code' => next_code()]);
         case 'booking_save':
             out(booking_save($in));
         case 'booking_cancel':
-            out(booking_cancel((int)$in['id'], (string)($in['reason'] ?? ''), clean_int($in['version'] ?? null)));
+            out(booking_cancel((int)($in['id'] ?? 0), (string)($in['reason'] ?? ''), clean_int($in['version'] ?? null)));
         case 'booking_transfer':
-            out(booking_transfer((int)$in['id'], (int)$in['agency_id'], clean_date($in['check_in'] ?? ''), clean_date($in['check_out'] ?? ''), clean_int($in['version'] ?? null)));
+            out(booking_transfer((int)($in['id'] ?? 0), (int)($in['agency_id'] ?? 0), clean_date($in['check_in'] ?? ''), clean_date($in['check_out'] ?? ''), clean_int($in['version'] ?? null)));
         case 'booking_move':
-            out(booking_move((int)$in['id'], (int)$in['hotel_id'], clean_int($in['version'] ?? null)));
+            out(booking_move((int)($in['id'] ?? 0), (int)($in['hotel_id'] ?? 0), clean_int($in['version'] ?? null)));
         case 'booking_delete':
-            booking_delete((int)$in['id']);
+            booking_delete((int)($in['id'] ?? 0));
             out(['ok' => true]);
         case 'ekstre_oku':
             session_write_close(); // okuma uzun sürebilir; diğer istekler beklemesin
@@ -251,11 +294,11 @@ try {
         case 'rate_save':
             out(rate_save($in));
         case 'rate_delete':
-            rate_delete((int)$in['id']); out(['ok' => true]);
+            rate_delete((int)($in['id'] ?? 0)); out(['ok' => true]);
         case 'allotment_save':
             out(allotment_save($in));
         case 'allotment_delete':
-            allotment_delete((int)$in['id']); out(['ok' => true]);
+            allotment_delete((int)($in['id'] ?? 0)); out(['ok' => true]);
         case 'agency_save':
             out(agency_save($in));
         case 'guests_save':
@@ -266,6 +309,18 @@ try {
             out(payment_save($in));
         case 'payment_delete':
             out(payment_delete((int)($in['id'] ?? 0)));
+        case 'otel_odeme_kaydet':
+            out(otel_odeme_kaydet($in));
+        case 'otel_odeme_sil':
+            out(otel_odeme_sil((int)($in['id'] ?? 0)));
+        case 'operasyon_kaydet':
+            out(operasyon_kaydet($in));
+        case 'fatura_isaretle':
+            out(fatura_isaretle($in));
+        case 'portal_talep':
+            out(portal_talep($in));
+        case 'portal_talep_guncelle':
+            out(portal_talep_guncelle($in));
         case 'talep_update':
             out(talep_update($in));
         case 'talep_reply':
@@ -312,22 +367,26 @@ try {
             $role = $in['role'] ?? '';
             if (!$name || !isset(ROLES[$role])) throw new ApiError('Ad ve rol gerekli.');
             $active = isset($in['active']) ? (int)!!$in['active'] : 1;
+            $agencyId = null;
+            if ($role === 'acente') {
+                $agencyId = clean_int($in['agency_id'] ?? null);
+                if (!$agencyId || !q_one('SELECT id FROM agencies WHERE id = ?', [$agencyId], db_main())) throw new ApiError('Acente portalı kullanıcısı için acenteyi seçin.');
+            }
+            // Şifre ve diğer kontroller kayıttan önce: hata varsa hiçbir şey değişmez
+            if ($id && !empty($in['password']) && ($e = validate_password((string)$in['password']))) throw new ApiError($e);
             if ($id) {
-                $old = q_one('SELECT id, username, name, role, active FROM users WHERE id = ?', [$id], db_main());
+                $old = q_one('SELECT id, username, name, role, agency_id, active FROM users WHERE id = ?', [$id], db_main());
                 if (!$old) throw new ApiError('Kullanıcı bulunamadı.', 404);
                 if ($id === (int)$u['id'] && ($role !== 'yonetici' || !$active)) throw new ApiError('Kendi yönetici yetkinizi kaldıramazsınız.');
-                q('UPDATE users SET name = ?, role = ?, active = ? WHERE id = ?', [$name, $role, $active, $id], db_main());
-                if (!empty($in['password'])) {
-                    if ($e = validate_password($in['password'])) throw new ApiError($e);
-                    q('UPDATE users SET pass_hash = ? WHERE id = ?', [password_hash($in['password'], PASSWORD_DEFAULT), $id], db_main());
-                }
+                q('UPDATE users SET name = ?, role = ?, agency_id = ?, active = ? WHERE id = ?', [$name, $role, $agencyId, $active, $id], db_main());
+                if (!empty($in['password'])) q('UPDATE users SET pass_hash = ? WHERE id = ?', [password_hash($in['password'], PASSWORD_DEFAULT), $id], db_main());
                 audit('user', $id, 'guncelle', "Kullanıcı güncellendi: $name (" . ROLES[$role] . ')' . (!empty($in['password']) ? ', şifre yenilendi' : '') . (!$active ? ', pasif' : ''), $old, ['name' => $name, 'role' => $role, 'active' => $active], db_main());
             } else {
                 $user = mb_strtolower(clean_str($in['username'] ?? '', 60) ?? '');
                 if (!preg_match('/^[a-z0-9._-]{3,60}$/', $user)) throw new ApiError('Kullanıcı adı en az 3 karakter; yalnız küçük harf, rakam, nokta, tire.');
                 if (q_one('SELECT id FROM users WHERE username = ?', [$user], db_main())) throw new ApiError('Bu kullanıcı adı alınmış.');
                 if ($e = validate_password((string)($in['password'] ?? ''))) throw new ApiError($e);
-                q('INSERT INTO users (username, name, pass_hash, role, active, created_at) VALUES (?,?,?,?,?,?)', [$user, $name, password_hash($in['password'], PASSWORD_DEFAULT), $role, $active, now()], db_main());
+                q('INSERT INTO users (username, name, pass_hash, role, agency_id, active, created_at) VALUES (?,?,?,?,?,?,?)', [$user, $name, password_hash($in['password'], PASSWORD_DEFAULT), $role, $agencyId, $active, now()], db_main());
                 $id = (int)db_main()->lastInsertId();
                 audit('user', $id, 'ekle', "Kullanıcı eklendi: $name (" . ROLES[$role] . ')', null, null, db_main());
             }

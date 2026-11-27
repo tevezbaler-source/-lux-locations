@@ -115,6 +115,10 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     $tables['payments'] = "id $pk, agency_id INT NOT NULL, booking_id INT NULL, pay_date VARCHAR(10) NOT NULL, amount DECIMAL(14,2) NOT NULL, currency VARCHAR(3) NOT NULL, method VARCHAR(30) NULL, note VARCHAR(255) NULL, deleted INT NOT NULL DEFAULT 0, $meta";
     // Otelden gelen ödeme ekstreleri ve kontrol sonucu
     $tables['hotel_statements'] = "id $pk, hotel_id INT NULL, hotel_name VARCHAR(160) NULL, currency VARCHAR(3) NULL, total DECIMAL(14,2) NULL, due DECIMAL(14,2) NULL, errors INT NOT NULL DEFAULT 0, status VARCHAR(10) NOT NULL DEFAULT 'kontrol', paid_at VARCHAR(10) NULL, note VARCHAR(255) NULL, data $txt NULL, deleted INT NOT NULL DEFAULT 0, $meta";
+    // Otele yapılan ödemeler (otel carisi)
+    $tables['hotel_payments'] = "id $pk, hotel_id INT NOT NULL, pay_date VARCHAR(10) NOT NULL, amount DECIMAL(14,2) NOT NULL, currency VARCHAR(3) NOT NULL, method VARCHAR(30) NULL, note VARCHAR(255) NULL, statement_id INT NULL, deleted INT NOT NULL DEFAULT 0, $meta";
+    // Acente portalından gelen talepler
+    $tables['portal_requests'] = "id $pk, agency_id INT NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, hotel_pref VARCHAR(255) NULL, check_in VARCHAR(10) NULL, check_out VARCHAR(10) NULL, rooms VARCHAR(255) NULL, board VARCHAR(4) NULL, pax INT NULL, message $txt NULL, status VARCHAR(12) NOT NULL DEFAULT 'new', staff_note $txt NULL, booking_id INT NULL, $meta";
     $tables['mail_log'] = "id $pk, booking_id INT NOT NULL, kind VARCHAR(20) NOT NULL, state VARCHAR(20) NULL, to_addr VARCHAR(500) NOT NULL, cc VARCHAR(500) NULL, subject VARCHAR(255) NULL, ok INT NOT NULL DEFAULT 0, error VARCHAR(500) NULL, user_id INT NULL, user_name VARCHAR(120) NULL, at VARCHAR(19) NOT NULL";
     $tables['audit_log'] = "id $pk, at VARCHAR(19) NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, ip VARCHAR(64) NULL, entity VARCHAR(30) NOT NULL, entity_id INT NULL, action VARCHAR(30) NOT NULL, summary VARCHAR(255) NULL, old_json $txt NULL, new_json $txt NULL";
 
@@ -122,7 +126,21 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         $pdo->exec("CREATE TABLE IF NOT EXISTS $name ($cols)$tail");
     }
     // Sonradan eklenen sütunlar (eski veritabanlarında yoksa eklenir)
-    foreach (['hotels' => ['email' => 'VARCHAR(255) NULL', 'site_slug' => 'VARCHAR(120) NULL', 'cover' => 'VARCHAR(255) NULL'], 'agencies' => ['invoice_info' => "$txt NULL"]] as $t => $cols) {
+    $added = [
+        'hotels' => ['email' => 'VARCHAR(255) NULL', 'site_slug' => 'VARCHAR(120) NULL', 'cover' => 'VARCHAR(255) NULL'],
+        'agencies' => ['invoice_info' => "$txt NULL", 'markup_pct' => 'DECIMAL(6,2) NULL'],
+        // Sözleşme: minimum gece, çocuk politikası, erken rezervasyon indirimi
+        'hotel_rates' => ['min_nights' => 'INT NULL', 'chd_policy' => 'VARCHAR(255) NULL', 'eb_until' => 'VARCHAR(10) NULL', 'eb_pct' => 'DECIMAL(5,2) NULL'],
+        // Kontenjan: release (kaç gün önce otele dönecek) ve stop sale
+        'hotel_allotments' => ['release_days' => 'INT NULL', 'stop_sale' => 'INT NOT NULL DEFAULT 0'],
+        // Transfer ve tur planı
+        'booking_services' => ['service_date' => 'VARCHAR(10) NULL', 'service_time' => 'VARCHAR(5) NULL', 'pickup' => 'VARCHAR(160) NULL', 'dropoff' => 'VARCHAR(160) NULL',
+            'pax' => 'INT NULL', 'vehicle' => 'VARCHAR(80) NULL', 'driver' => 'VARCHAR(120) NULL', 'guide' => 'VARCHAR(120) NULL', 'plan_note' => 'VARCHAR(255) NULL'],
+        // Muhasebe: kesilen fatura
+        'bookings' => ['invoice_no' => 'VARCHAR(40) NULL', 'invoice_date' => 'VARCHAR(10) NULL'],
+    ];
+    if ($withUsers) $added['users'] = ['agency_id' => 'INT NULL'];
+    foreach ($added as $t => $cols) {
         foreach ($cols as $c => $def) {
             try { $pdo->query("SELECT $c FROM $t LIMIT 1"); } catch (PDOException $e) { $pdo->exec("ALTER TABLE $t ADD COLUMN $c $def"); }
         }
@@ -140,6 +158,8 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
         'ix_rates_hotel' => 'hotel_rates(hotel_id, date_from)',
         'ix_allot_hotel' => 'hotel_allotments(hotel_id, date_from)',
         'ix_audit_entity' => 'audit_log(entity, entity_id)',
+        'ix_hpay_hotel' => 'hotel_payments(hotel_id, pay_date)',
+        'ix_preq_agency' => 'portal_requests(agency_id)',
     ];
     foreach ($idx as $n => $def) {
         try {

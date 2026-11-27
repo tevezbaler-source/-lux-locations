@@ -7,6 +7,7 @@ const ROLES = [
     'operasyon'   => 'Operasyon',
     'rezervasyon' => 'Rezervasyon',
     'muhasebe'    => 'Muhasebe',
+    'acente'      => 'Acente (portal)',
 ];
 
 // Rol => yapabildikleri
@@ -15,7 +16,12 @@ const PERMS = [
     'operasyon'   => ['booking', 'hotel', 'agency', 'rate', 'talep', 'report'],
     'rezervasyon' => ['booking', 'hotel', 'agency', 'talep'],
     'muhasebe'    => ['rate', 'agency', 'report', 'cari'],
+    // Acente portalı: yalnız kendi grupları, carisi ve talepleri (api.php'de ayrıca beyaz listeyle sınırlı)
+    'acente'      => ['portal'],
 ];
+
+/** Acente portalı kullanıcısının yapabildiği istekler; başka her şey reddedilir. */
+const PORTAL_ACTIONS = ['portal', 'portal_grup', 'portal_talep', 'logout', 'password'];
 
 function lx_session_start(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
@@ -39,7 +45,7 @@ function current_user(): ?array {
     if ($u !== false) return $u;
     $u = null;
     if (!empty($_SESSION['uid'])) {
-        $u = q_one('SELECT id, username, name, role, active FROM users WHERE id = ?', [$_SESSION['uid']], db_main());
+        $u = q_one('SELECT id, username, name, role, agency_id, active FROM users WHERE id = ?', [$_SESSION['uid']], db_main());
         if (!$u || !(int)$u['active']) { $u = null; unset($_SESSION['uid']); }
     }
     return $u;

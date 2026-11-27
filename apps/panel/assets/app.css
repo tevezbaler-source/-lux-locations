@@ -361,3 +361,15 @@ body.egitim .top { background: color-mix(in srgb, var(--train) 22%, var(--head))
   .asst-att { height: 56px; }
   .asst-input textarea { min-height: 56px; font-size: 16px; }
 }
+
+/* Stop sale, operasyon planı, yazdırma */
+.cal .use.stop { background: repeating-linear-gradient(135deg, var(--err-bg), var(--err-bg) 4px, transparent 4px, transparent 8px); color: var(--err); font-weight: 700; }
+table.ops td { vertical-align: top; }
+table.ops input { padding: 4px 6px; }
+tr.unplanned td { opacity: .6; }
+tr.unplanned td:first-child, tr.unplanned td:nth-child(2) { opacity: 1; }
+@media print {
+  .top, .filters, .asst-fab, .asst-panel, #toasts, button { display: none !important; }
+  body { background: #fff; }
+  table.ops input { border: 0; padding: 0; width: auto !important; background: none; }
+}

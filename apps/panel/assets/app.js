@@ -23,6 +23,7 @@
   const nightsBetween = (a, b) => (a && b) ? Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000) : 0;
   const DOW = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
   const MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const starStr = (n) => '★'.repeat(Math.max(0, Math.min(5, Math.round(+n) || 0)));
   const statusBadge = (s) => `<span class="badge st-${esc(s)}">${esc(S.consts.statuses[s] || s)}</span>`;
   const can = (p) => !!(S.user && S.user.perms.includes(p));
   const qs = (sel, root = document) => root.querySelector(sel);
@@ -224,7 +225,7 @@
   }
 
   const NAV = [
-    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['odemeler', 'Otel ödemeleri', 'cari'], ['notlar', 'Notlar', null],
+    ['', 'Oteller', null], ['kontenjan', 'Kontenjan', null], ['operasyon', 'Operasyon', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['odemeler', 'Otel ödemeleri', 'cari'], ['faturalar', 'Faturalar', 'cari'], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
@@ -236,7 +237,7 @@
   function shell() {
     document.body.classList.toggle('egitim', S.egitim);
     const cur = parseHash().parts[0] || '';
-    const navCur = cur === 'otel' || cur === 'grup' ? '' : cur === 'acente' ? 'acenteler' : cur === 'odeme' ? 'odemeler' : cur;
+    const navCur = cur === 'otel' || cur === 'grup' ? '' : cur === 'acente' ? 'acenteler' : cur === 'odeme' || cur === 'otel-cari' ? 'odemeler' : cur;
     $app.innerHTML = `
       <header class="top">
         <a class="brand" href="#/">Lux Locations · Otel Paneli</a>
@@ -297,6 +298,7 @@
   /* ---------- yönlendirme ---------- */
   async function route() {
     if (!S.user) return;
+    if (S.user.role === 'acente') return renderPortal();
     const { parts, params } = parseHash();
     const main = shell();
     if (A.el && A.mode !== S.egitim) { A.log = []; A.mode = S.egitim; asstRender(); }
@@ -314,6 +316,10 @@
         case 'raporlar': return await viewReports(main, params);
         case 'odemeler': return await viewPayments(main, null);
         case 'odeme': return await viewPayments(main, +parts[1]);
+        case 'otel-cari': return parts[1] ? await viewHotelCari(main, +parts[1]) : await viewHotelCariList(main);
+        case 'kontenjan': return await viewKontenjan(main, params);
+        case 'operasyon': return await viewOperasyon(main, params);
+        case 'faturalar': return await viewInvoices(main, params);
         case 'notlar': return await viewNotes(main, params);
         case 'otel-yonetimi': return await viewHotelAdmin(main);
         case 'kullanicilar': return await viewUsers(main);
@@ -365,6 +371,7 @@
         const late = o.option_until < today(), now = o.option_until === today();
         return `<a href="#/grup/${o.id}" style="margin-right:12px;white-space:nowrap">${esc(o.hotel)} · ${esc(o.agency || '—')} · ${esc(o.code || '#' + o.id)} <b style="color:${late || now ? 'var(--err)' : 'var(--warn)'}">${late ? 'opsiyon geçti ' + trDate(o.option_until) : now ? 'opsiyon bugün bitiyor' : 'opsiyon yarın bitiyor'}</b></a>`;
       }).join('')}</div>` : ''}
+      ${(d.releases || []).length ? `<div class="panel" style="border-color:var(--info);background:var(--info-bg);margin-top:10px"><b>Release yaklaşıyor:</b> ${d.releases.map((r) => `<a href="#/kontenjan" style="margin-right:12px;white-space:nowrap">${esc(r.hotel)} · ${r.rooms} boş oda-gece <b>${r.first < today() ? 'release geçti' : trDate(r.first)}</b></a>`).join('')} <span class="small muted">Satılmazsa odalar otele döner.</span></div>` : ''}
       <div class="filters">
         <div class="quick">${pre.map(([l, f, t]) => `<button data-f="${f}" data-t="${t}" class="${f === from && t === to ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label class="f">Başlangıç<input type="date" id="fFrom" value="${from}"></label>
@@ -417,7 +424,7 @@
     const initials = h.name.split(/\s+/).filter((w) => !/^(hotel|otel|the)$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
     return `<div class="hcard ${cls}" data-id="${h.id}" tabindex="0">
       ${h.cover ? `<div class="cover" style="background-image:url('${esc(encodeURI(h.cover))}')" role="img" aria-label="${esc(h.name)}"></div>` : `<div class="cover none">${esc(initials)}</div>`}
-      <div><div class="name">${esc(h.name)} ${h.stars ? `<span class="muted small">${'★'.repeat(+h.stars)}</span>` : ''}</div>
+      <div><div class="name">${esc(h.name)} ${h.stars ? `<span class="muted small">${starStr(h.stars)}</span>` : ''}</div>
         <div class="meta">${esc(h.region || '')} · ${s.groups} grup</div></div>
       <div><div class="sub"><span>En dolu gece: <b>${s.max_reserved}</b>${s.max_allotment !== null ? ` / ${s.max_allotment} oda` : ' oda (kontenjan yok)'}</span></div>
         <div class="bar ${s.over_nights ? 'over' : ''}"><i style="width:${pct}%"></i></div></div>
@@ -441,7 +448,7 @@
 
     let cal = `<div class="cal" style="grid-template-columns: 190px repeat(${nCols}, minmax(38px, 1fr))">`;
     cal += `<div class="c lbl day">Gece</div>` + dates.map((d) => { const x = new Date(d + 'T00:00:00'); const we = [0, 6].includes(x.getDay()); return `<div class="c day ${we ? 'we' : ''}">${x.getDate()}<div class="dw">${DOW[x.getDay()]}${x.getDate() === 1 || d === from ? ' ' + MON[x.getMonth()] : ''}</div></div>`; }).join('');
-    cal += `<div class="c lbl">Dolu / kontenjan</div>` + h.nights.map((n) => { const over = n.allotment !== null && n.reserved > n.allotment; const full = n.allotment !== null && n.reserved === n.allotment && n.reserved > 0; return `<div class="c use ${over ? 'over' : full ? 'full' : ''}" title="${trDate(n.date)}: ${n.reserved} oda ayrıldı${n.allotment !== null ? ', kontenjan ' + n.allotment : ''}">${n.reserved}${n.allotment !== null ? '<span class="muted">/' + n.allotment + '</span>' : ''}</div>`; }).join('');
+    cal += `<div class="c lbl">Dolu / kontenjan</div>` + h.nights.map((n) => { const over = n.allotment !== null && n.reserved > n.allotment; const full = n.allotment !== null && n.reserved === n.allotment && n.reserved > 0; return `<div class="c use ${over ? 'over' : full ? 'full' : ''} ${n.stop ? 'stop' : ''}" title="${trDate(n.date)}: ${n.reserved} oda ayrıldı${n.allotment !== null ? ', kontenjan ' + n.allotment : ''}${n.stop ? ', STOP SALE' : ''}${n.release ? ', release ' + trDate(n.release) : ''}">${n.reserved}${n.allotment !== null ? '<span class="muted">/' + n.allotment + '</span>' : ''}</div>`; }).join('');
     h.bookings.forEach((b, i) => {
       const row = i + 3;
       const s = colOf(b.check_in), e = colOf(b.check_out);
@@ -461,8 +468,8 @@
     main.innerHTML = `
       <div class="row"><a href="#/">← Oteller</a>${h.site_slug ? `<span class="spacer"></span><a href="/oteller/${encodeURIComponent(h.site_slug)}/" target="_blank" rel="noopener">Sitedeki sayfası ↗</a>` : ''}</div>
       ${h.cover ? `<div class="hhead"><div class="cover" style="background-image:url('${esc(encodeURI(h.cover))}')"></div><div class="small muted">${esc(h.region || '')}${h.address ? '<br>' + esc(h.address) : ''}</div></div>` : ''}
-      <div class="row"><h1>${esc(h.name)} ${h.stars ? `<span class="muted small">${'★'.repeat(+h.stars)}</span>` : ''}</h1>${h.active == 1 ? '' : '<span class="badge st-iptal">Pasif</span>'}<span class="spacer"></span>
-        ${can('booking') ? `<a class="btn primary" href="#/grup/yeni?otel=${h.id}">+ Bu otele grup</a>` : ''}${can('hotel') ? '<button id="editH">Otel bilgileri</button>' : ''}</div>
+      <div class="row"><h1>${esc(h.name)} ${h.stars ? `<span class="muted small">${starStr(h.stars)}</span>` : ''}</h1>${h.active == 1 ? '' : '<span class="badge st-iptal">Pasif</span>'}<span class="spacer"></span>
+        ${can('booking') ? `<a class="btn primary" href="#/grup/yeni?otel=${h.id}">+ Bu otele grup</a>` : ''}${can('cari') ? `<a class="btn" href="#/otel-cari/${h.id}">Otel carisi</a>` : ''}${can('hotel') ? '<button id="editH">Otel bilgileri</button>' : ''}</div>
       <div class="muted">${esc(h.region || '')}${h.address ? ' · ' + esc(h.address) : ''}${h.email ? ' · ' + esc(h.email) : ''}${h.contacts ? ' · İletişim: ' + esc(h.contacts) : ''}</div>
       ${h.notes ? `<div class="small" style="margin-top:4px;white-space:pre-wrap">${esc(h.notes)}</div>` : ''}
       <div class="filters">
@@ -485,18 +492,19 @@
 
       <h2>Sözleşme fiyatları (alış)</h2>
       <div class="small muted" style="margin-bottom:6px">Otelle anlaşılan dönem fiyatları. Grup açılırken alış buradan otomatik gelir; farklı girilirse panel uyarır.</div>
-      <div class="tbl-wrap"><table><thead><tr><th>Dönem</th><th>Döviz</th><th>Pansiyon</th><th class="num">SNGL</th><th class="num">DBL</th><th class="num">TWIN</th><th class="num">TRPL</th><th class="num">QUAD</th><th>Free kuralı</th><th>Faturalı</th><th>Görüşülen / not</th><th></th></tr></thead><tbody>
+      <div class="tbl-wrap"><table><thead><tr><th>Dönem</th><th>Döviz</th><th>Pansiyon</th><th class="num">SNGL</th><th class="num">DBL</th><th class="num">TWIN</th><th class="num">TRPL</th><th class="num">QUAD</th><th>Free kuralı</th><th>Koşullar</th><th>Faturalı</th><th>Görüşülen / not</th><th></th></tr></thead><tbody>
         ${h.rates.map((r) => `<tr><td class="nowrap">${trDate(r.date_from)} – ${trDate(r.date_to)}</td><td>${curTag(r.currency)}</td><td>${esc(r.board || '')}</td>${['sngl', 'dbl', 'twin', 'trpl', 'quad'].map((k) => `<td class="num">${r[k] !== null ? money(r[k]) : '—'}</td>`).join('')}
-          <td>${r.free_every ? `Her ${r.free_every} odada 1 ${esc(r.free_type || 'DBL')}` : '—'}</td><td>${r.invoiced == 1 ? 'Evet' : 'Hayır'}</td><td class="small">${esc(r.contact || '')}${r.note ? '<br>' + esc(r.note) : ''}</td>
-          <td class="nowrap">${can('hotel') ? `<button class="link" data-er="${r.id}">Düzenle</button><button class="link" data-dr="${r.id}" style="color:var(--err)">Sil</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="12" class="muted">Henüz sözleşme fiyatı yok.</td></tr>'}
+          <td>${r.free_every ? `Her ${r.free_every} odada 1 ${esc(r.free_type || 'DBL')}` : '—'}</td>
+          <td class="small">${[r.min_nights ? `En az ${r.min_nights} gece` : '', r.eb_pct ? `Erken rez. %${money(r.eb_pct).replace(/,00$/, '')} (${trDate(r.eb_until)}'e kadar)` : '', r.chd_policy ? 'Çocuk: ' + esc(r.chd_policy) : ''].filter(Boolean).join('<br>') || '—'}</td><td>${r.invoiced == 1 ? 'Evet' : 'Hayır'}</td><td class="small">${esc(r.contact || '')}${r.note ? '<br>' + esc(r.note) : ''}</td>
+          <td class="nowrap">${can('hotel') ? `<button class="link" data-er="${r.id}">Düzenle</button><button class="link" data-dr="${r.id}" style="color:var(--err)">Sil</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="13" class="muted">Henüz sözleşme fiyatı yok.</td></tr>'}
       </tbody></table></div>
       ${can('hotel') ? '<div class="actions"><button id="addRate">+ Sözleşme fiyatı ekle</button></div>' : ''}
 
       <h2>Kontenjan (otelin bize verdiği oda)</h2>
-      <div class="tbl-wrap"><table><thead><tr><th>Tarihler</th><th class="num">Oda</th><th>Not</th><th></th></tr></thead><tbody>
-        ${h.allotments.map((a) => `<tr><td>${trDate(a.date_from)} – ${trDate(a.date_to)}</td><td class="num">${a.rooms}</td><td>${esc(a.note || '')}</td><td class="nowrap">${can('hotel') ? `<button class="link" data-ea="${a.id}">Düzenle</button><button class="link" data-da="${a.id}" style="color:var(--err)">Sil</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Kontenjan girilmemiş; doluluk yalnız ayrılan oda olarak gösterilir.</td></tr>'}
+      <div class="tbl-wrap"><table><thead><tr><th>Tarihler</th><th class="num">Oda</th><th>Release</th><th>Not</th><th></th></tr></thead><tbody>
+        ${h.allotments.map((a) => `<tr><td>${trDate(a.date_from)} – ${trDate(a.date_to)}</td><td class="num">${+a.stop_sale ? '<span class="badge st-iptal">STOP SALE</span>' : a.rooms}</td><td>${+a.stop_sale ? '' : a.release_days !== null && a.release_days !== '' ? a.release_days + ' gün önce' : '—'}</td><td>${esc(a.note || '')}</td><td class="nowrap">${can('hotel') ? `<button class="link" data-ea="${a.id}">Düzenle</button><button class="link" data-da="${a.id}" style="color:var(--err)">Sil</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Kontenjan girilmemiş; doluluk yalnız ayrılan oda olarak gösterilir.</td></tr>'}
       </tbody></table></div>
-      ${can('hotel') ? '<div class="actions"><button id="addAl">+ Kontenjan ekle</button></div>' : ''}
+      ${can('hotel') ? '<div class="actions"><button id="addAl">+ Kontenjan ekle</button><button id="addStop">+ Stop sale ekle</button></div>' : ''}
       ${h.history.length ? `<h2>Otel kaydı geçmişi</h2><div class="panel hist">${h.history.map((x) => `<div class="h"><b>${esc(x.user_name || '')}</b> · <span class="muted">${trDT(x.at)}</span> · ${esc(x.summary)}</div>`).join('')}</div>` : ''}`;
 
     qs('#prev', main).onclick = () => nav({ from: addDays(from, -days) });
@@ -512,6 +520,7 @@
       qs('#editH', main).onclick = () => hotelForm(h, reload);
       qs('#addRate', main).onclick = () => rateForm(h, null, reload);
       qs('#addAl', main).onclick = () => allotForm(h, null, reload);
+      qs('#addStop', main).onclick = () => allotForm(h, { date_from: today(), date_to: addDays(today(), 7), rooms: 0, stop_sale: 1, note: '' }, reload, true);
       qsa('[data-er]', main).forEach((b) => b.onclick = () => rateForm(h, h.rates.find((r) => r.id == b.dataset.er), reload));
       qsa('[data-dr]', main).forEach((b) => b.onclick = async () => { if (await confirmBox('Sözleşme fiyatını sil', 'Bu dönem fiyatı silinsin mi? Eski gruplar etkilenmez, yalnız karşılaştırma için kullanılmaz.', 'Sil', true)) { await api('rate_delete', {}, { id: b.dataset.dr }); reload(); } });
       qsa('[data-ea]', main).forEach((b) => b.onclick = () => allotForm(h, h.allotments.find((r) => r.id == b.dataset.ea), reload));
@@ -546,7 +555,7 @@
     const name = qs('[name="name"]', bg), hint = qs('#hnHint', bg), slug = qs('[name="site_slug"]', bg);
     let list = [];
     const sb = suggestBox(name, () => list.map((x) => ({ ...x, label: x.name,
-      html: `${x.cover ? `<span class="th" style="background-image:url('${esc(encodeURI(x.cover))}')"></span>` : '<span class="th"></span>'}<span class="nm">${esc(x.name)}${x.stars ? ` <span class="muted">${'★'.repeat(+x.stars)}</span>` : ''}<br><span class="small muted">${esc(x.region || '')}${x.panel_id ? ' · <b>panelde var</b>' : x.site ? ' · sitede' : ''}</span></span>` })), (it) => {
+      html: `${x.cover ? `<span class="th" style="background-image:url('${esc(encodeURI(x.cover))}')"></span>` : '<span class="th"></span>'}<span class="nm">${esc(x.name)}${x.stars ? ` <span class="muted">${starStr(x.stars)}</span>` : ''}<br><span class="small muted">${esc(x.region || '')}${x.panel_id ? ' · <b>panelde var</b>' : x.site ? ' · sitede' : ''}</span></span>` })), (it) => {
       slug.value = '';
       if (it.panel_id) { hint.innerHTML = `"${esc(it.name)}" panelde zaten var. <a href="#/otel/${it.panel_id}" class="go-h">Otelin sayfasını aç</a>`; return; }
       slug.value = it.slug || '';
@@ -570,6 +579,10 @@
       ${['sngl', 'dbl', 'twin', 'trpl', 'quad'].map((k) => `<label class="f">${k.toUpperCase()} (oda/gece)<input name="${k}" inputmode="decimal" value="${v[k] ?? ''}" placeholder="${k === 'twin' ? '= DBL' : k === 'quad' ? '= DBL x 2' : ''}"></label>`).join('')}
       <label class="f">Free: her kaç odada 1<input name="free_every" inputmode="numeric" value="${v.free_every ?? ''}" placeholder="boş = free yok"></label>
       <label class="f">Free oda tipi<select name="free_type">${S.consts.room_types.map((c) => `<option ${c === (v.free_type || 'DBL') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+      <label class="f">En az kaç gece<input name="min_nights" inputmode="numeric" value="${v.min_nights ?? ''}" placeholder="boş = sınır yok"></label>
+      <label class="f">Erken rezervasyon son günü<input type="date" name="eb_until" value="${v.eb_until || ''}"></label>
+      <label class="f">Erken rezervasyon indirimi %<input name="eb_pct" inputmode="decimal" value="${v.eb_pct ?? ''}" placeholder="ör. 10"></label>
+      <label class="f wide">Çocuk politikası<input name="chd_policy" value="${esc(v.chd_policy || '')}" placeholder="ör. 0-5,99 ücretsiz, 6-11,99 %50, ekstra yatak 20 USD"></label>
       <label class="chk"><input type="checkbox" name="invoiced" ${+v.invoiced ? 'checked' : ''}> Faturalı fiyat</label>
       <label class="f wide">Otelde görüşülen kişi<input name="contact" value="${esc(v.contact || '')}" placeholder="ör. Veli Bey"></label>
       <label class="f wide">Not<input name="note" value="${esc(v.note || '')}" placeholder="ör. Veli Bey ile görüşmeye istinaden"></label></div>`, { ok: 'Kaydet', onOpen: (bg) => historySuggest(qs('[name="contact"]', bg), 'contact', { hotel_id: h.id }) });
@@ -577,15 +590,20 @@
     try { await api('rate_save', {}, Object.assign(res, { hotel_id: h.id }, r ? { id: r.id, version: r.version } : {})); toast('Sözleşme fiyatı kaydedildi.', 'ok'); after(); } catch (e) { toast(e.message, 'err'); }
   }
 
-  async function allotForm(h, a = null, after) {
-    const v = a || { date_from: today(), date_to: addDays(today(), 90), rooms: 25, note: '' };
-    const res = await modal(a ? 'Kontenjanı düzenle' : 'Kontenjan ekle', `<div class="grid-form">
+  async function allotForm(h, a = null, after, isNewStop = false) {
+    const v = a || { date_from: today(), date_to: addDays(today(), 90), rooms: 25, note: '', release_days: '' };
+    const stop = +v.stop_sale === 1;
+    const editing = a && !isNewStop;
+    const res = await modal(stop ? (editing ? 'Stop sale düzenle' : 'Stop sale ekle') : (editing ? 'Kontenjanı düzenle' : 'Kontenjan ekle'), `<div class="grid-form">
       <label class="f">Başlangıç<input type="date" name="date_from" value="${v.date_from}"></label>
-      <label class="f">Bitiş<input type="date" name="date_to" value="${v.date_to}"></label>
+      <label class="f">Bitiş (bu gece dahil)<input type="date" name="date_to" value="${v.date_to}"></label>
+      ${stop ? '<input type="hidden" name="stop_sale" value="1"><div class="small muted wide" style="grid-column:1/-1">Otel bu gecelerde satışı kapattı. Bu tarihlere grup açılırsa panel uyarır.</div>' : `
       <label class="f">Oda sayısı (her gece)<input name="rooms" inputmode="numeric" value="${v.rooms}"></label>
-      <label class="f wide">Not<input name="note" value="${esc(v.note || '')}" placeholder="ör. Otel 15 odayı 10'a düşürdü"></label></div>`, { ok: 'Kaydet' });
+      <label class="f">Release: kaç gün önce<input name="release_days" inputmode="numeric" value="${v.release_days ?? ''}" placeholder="ör. 7 (boş = yok)"></label>
+      <div class="small muted wide" style="grid-column:1/-1">Release: satılmayan odalar her geceden bu kadar gün önce otele geri döner. Panel yaklaşan release'leri hatırlatır.</div>`}
+      <label class="f wide">Not<input name="note" value="${esc(v.note || '')}" placeholder="${stop ? 'ör. Otel fuar nedeniyle kapattı' : "ör. Otel 15 odayı 10'a düşürdü"}"></label></div>`, { ok: 'Kaydet' });
     if (!res) return;
-    try { await api('allotment_save', {}, Object.assign(res, { hotel_id: h.id }, a ? { id: a.id, version: a.version } : {})); toast('Kontenjan kaydedildi.', 'ok'); after(); } catch (e) { toast(e.message, 'err'); }
+    try { await api('allotment_save', {}, Object.assign(res, { hotel_id: h.id }, stop ? { stop_sale: 1 } : {}, editing ? { id: a.id, version: a.version } : {})); toast(stop ? 'Stop sale kaydedildi.' : 'Kontenjan kaydedildi.', 'ok'); after(); } catch (e) { toast(e.message, 'err'); }
   }
 
   /* ================= GRUP FORMU ================= */
@@ -610,6 +628,7 @@
           <a class="btn" href="${docUrl('talep')}" target="_blank" rel="noopener">Otel talep fişi</a>
           ${ed ? '<button type="button" class="btn" id="mSend">Otele e-postayla gönder</button>' : ''}
           <a class="btn primary" href="${docUrl('voucher')}" target="_blank" rel="noopener">Voucher</a>
+          <a class="btn" href="${docUrl('teklif')}" target="_blank" rel="noopener" title="Acenteye fiyat teklifi (alış fiyatı görünmez)">Teklif (acenteye)</a>
           ${can('cari') ? `<a class="btn" href="fatura.php?id=${b.id}" target="_blank" rel="noopener">Fatura taslağı</a>` : ''}</div>
         <div id="mBox" style="display:none" class="panel"></div>
         ${(b.mail_log || []).length ? `<div class="small" style="margin:0 0 8px"><b>Otele giden e-postalar:</b> ${b.mail_log.map((l) => `<div class="${+l.ok ? '' : 'neg'}">${trDT(l.at)} · ${esc(l.state || '')} · ${esc(l.to_addr)}${l.cc ? ' (cc ' + esc(l.cc) + ')' : ''} · ${esc(l.user_name || '')}${+l.ok ? (l.error ? ' · ' + esc(l.error) : ' · gönderildi') : ' · <b>gönderilemedi:</b> ' + esc(l.error || '')}</div>`).join('')}</div>` : ''}
@@ -733,6 +752,19 @@
         if (dt && !isNaN(new Date(dt + 'T00:00:00'))) { b.check_in = dt; b.check_out = addDays(dt, 3); }
         b.fromTalep = t;
       }
+      if (p.ptalep) {
+        // Acente portalından gelen talep: acente, tarih ve istenen odalar
+        const pl = await api('portal_talepler');
+        const t = pl.rows.find((x) => String(x.id) === String(p.ptalep));
+        if (t) {
+          b.agency_id = +t.agency_id; b.agency_name = t.agency;
+          if (t.check_in) b.check_in = t.check_in;
+          if (t.check_out) b.check_out = t.check_out;
+          if (t.board) b.board = t.board;
+          b.notes = `Acente portalı talebi #${t.id} (${t.user_name || ''}): ${t.rooms || ''}${t.pax ? ' · ' + t.pax + ' kişi' : ''}${t.hotel_pref ? '\nOtel tercihi: ' + t.hotel_pref : ''}${t.message ? '\n\n' + t.message : ''}`;
+          b.fromPortal = t;
+        }
+      }
     } else {
       b = await api('booking', { id: +idPart });
     }
@@ -745,6 +777,7 @@
 
     main.innerHTML = `
       <div class="row"><a href="#/otel/${b.hotel_id || ''}">← ${esc(hotels.find((h) => h.id == b.hotel_id)?.name || 'Oteller')}</a></div>
+      ${b.fromPortal ? `<div class="lockbox" style="background:var(--info-bg);border-color:var(--info)">Bu grup <b>${esc(b.fromPortal.agency)}</b> acentesinin portaldan gönderdiği talepten açılıyor: ${esc(b.fromPortal.rooms || '')}. Otel ve odaları seçip kaydedin.</div>` : ''}
       ${b.fromTalep ? `<div class="lockbox" style="background:var(--info-bg);border-color:var(--info)">Bu grup <a href="#/talepler?q=${esc(b.fromTalep.id)}">${esc(b.fromTalep.name)} talebinden</a> açılıyor. Müşteri bilgisi ve mesaj notlara kondu; otel, acente ve odaları seçip kaydedin.</div>` : ''}
       <div class="row"><h1>${isNew ? 'Yeni grup' : `Grup ${esc(b.code || '#' + b.id)}`}</h1>${isNew ? '' : statusBadge(b.status)}${+b.deleted ? '<span class="badge st-iptal">Silinmiş</span>' : ''}</div>
       ${!isNew ? `<div class="small muted">Açan: ${esc(b.created_by_name || (b.created_by ? '—' : 'Örnek veri'))} ${trDT(b.created_at)} · Son değişiklik: ${esc(b.updated_by_name || (b.updated_by ? '—' : 'Örnek veri'))} ${trDT(b.updated_at)}${b.prev ? ` · <a href="#/grup/${b.prev.id}">${esc(b.prev.agency_name)} grubundan devralındı</a>` : ''}${b.next ? ` · <a href="#/grup/${b.next.id}">${esc(b.next.agency_name)} acentesine devredildi</a>` : ''}</div>` : ''}
@@ -770,7 +803,7 @@
           </div></div>
 
           <div class="panel"><div class="row"><h3 style="margin:0">Odalar ve fiyatlar</h3><span class="spacer"></span>
-              <button type="button" id="fromContract" class="${locked ? 'hidden' : ''}">Alışı sözleşmeden doldur</button></div>
+              <button type="button" id="fromContract" class="${locked ? 'hidden' : ''}">Alışı sözleşmeden doldur</button><button type="button" id="fromMarkup" class="${locked || ro ? 'hidden' : ''}" title="Satış = alış + acentenin kâr oranı">Satışı kâr oranıyla doldur</button></div>
             <div class="grid-form" style="margin-top:10px">
               <label class="f">Alış dövizi<select name="buy_cur" class="pz">${opt(CUR, b.buy_cur)}</select></label>
               <label class="f">Satış dövizi<select name="sell_cur" class="pz">${opt(CUR, b.sell_cur)}</select></label>
@@ -785,7 +818,7 @@
             <div class="row"><button type="button" class="link pz" id="addFree">+ Free ekle</button><button type="button" class="link pz" id="suggestFree">Sözleşme kuralına göre öner</button></div>
 
             <h3>Ek hizmetler</h3>
-            <table class="edit"><thead><tr><th>Hizmet</th><th>Açıklama</th><th>Alış</th><th>Satış</th><th>Döviz</th><th></th></tr></thead><tbody id="srvB"></tbody></table>
+            <table class="edit"><thead><tr><th>Hizmet</th><th>Açıklama</th><th>Alış</th><th>Satış</th><th>Döviz</th><th>Plan</th><th></th></tr></thead><tbody id="srvB"></tbody></table>
             <button type="button" class="link pz" id="addSrv">+ Hizmet ekle</button>
 
             <h3>Kur</h3>
@@ -819,7 +852,10 @@
     const del = '<td><button type="button" class="link pz rm" title="Satırı sil" style="color:var(--err)">✕</button></td>';
     const roomRow = (r = {}) => `<tr><td><select data-k="room_type" class="pz">${opt(RT, r.room_type || 'DBL')}</select></td><td><input data-k="qty" class="pz" inputmode="numeric" value="${r.qty ?? ''}"></td><td><input data-k="buy_price" class="pz" inputmode="decimal" value="${r.buy_price ?? ''}"></td><td><input data-k="sell_price" class="pz" inputmode="decimal" value="${r.sell_price ?? ''}"></td>${del}</tr>`;
     const freeRow = (f = {}) => `<tr><td><select data-k="direction" class="pz"><option value="in" ${f.direction !== 'out' ? 'selected' : ''}>Otelden alınan</option><option value="out" ${f.direction === 'out' ? 'selected' : ''}>Acenteye verilen</option></select></td><td><select data-k="room_type" class="pz">${opt(RT, f.room_type || 'DBL')}</select></td><td><input data-k="qty" class="pz" inputmode="numeric" value="${f.qty ?? 1}"></td>${del}</tr>`;
-    const srvRow = (s = {}) => `<tr><td><input data-k="kind" class="pz" value="${esc(s.kind || '')}" placeholder="Transfer"></td><td><input data-k="description" class="pz" value="${esc(s.description || '')}"></td><td><input data-k="buy" class="pz" inputmode="decimal" value="${s.buy ?? ''}"></td><td><input data-k="sell" class="pz" inputmode="decimal" value="${s.sell ?? ''}"></td><td><select data-k="currency" class="pz">${opt(CUR, s.currency || 'EUR')}</select></td>${del}</tr>`;
+    const PLAN_K = ['service_date', 'service_time', 'pickup', 'dropoff', 'pax', 'vehicle', 'driver', 'guide', 'plan_note'];
+    const planLabel = (s) => s.service_date ? `${trDate(s.service_date).slice(0, 5)}${s.service_time ? ' ' + s.service_time : ''}${s.driver || s.vehicle ? ' · ' + (s.driver || s.vehicle) : ''}` : 'Planla';
+    const srvRow = (s = {}) => `<tr><td><input data-k="kind" class="pz" value="${esc(s.kind || '')}" placeholder="Transfer"></td><td><input data-k="description" class="pz" value="${esc(s.description || '')}"></td><td><input data-k="buy" class="pz" inputmode="decimal" value="${s.buy ?? ''}"></td><td><input data-k="sell" class="pz" inputmode="decimal" value="${s.sell ?? ''}"></td><td><select data-k="currency" class="pz">${opt(CUR, s.currency || 'EUR')}</select></td>
+      <td class="nowrap">${PLAN_K.map((k) => `<input type="hidden" data-k="${k}" value="${esc(s[k] ?? '')}">`).join('')}<button type="button" class="link splan" title="Tarih, saat, alış-bırakış yeri, araç, şoför, rehber">${esc(planLabel(s))}</button></td>${del}</tr>`;
     rowsEl.rooms.innerHTML = b.rooms.map(roomRow).join('');
     rowsEl.free.innerHTML = b.free.map(freeRow).join('');
     rowsEl.srv.innerHTML = b.services.map(srvRow).join('');
@@ -931,9 +967,30 @@
       if (e.target.name === 'hotel_id' && isNew && e.target.value) fillFromContract(true);
       schedule();
     });
-    main.addEventListener('click', (e) => {
+    main.addEventListener('click', async (e) => {
       const rm = e.target.closest('.rm');
       if (rm && !rm.disabled) { rm.closest('tr').remove(); schedule(); }
+      const pb = e.target.closest('.splan');
+      if (pb && !ro) {
+        const tr = pb.closest('tr');
+        const g = (k) => qs(`[data-k=${k}]`, tr).value;
+        const kind = g('kind') || 'Hizmet';
+        const r = await modal(`${kind}: transfer / tur planı`, `<div class="grid-form">
+          <label class="f">Tarih<input type="date" name="service_date" value="${esc(g('service_date') || form.check_in.value)}"></label>
+          <label class="f">Saat<input type="time" name="service_time" value="${esc(g('service_time'))}"></label>
+          <label class="f">Kişi<input name="pax" inputmode="numeric" value="${esc(g('pax'))}"></label>
+          <label class="f wide">Alınacak yer<input name="pickup" value="${esc(g('pickup'))}" placeholder="ör. İstanbul Havalimanı, uçuş TK1234"></label>
+          <label class="f wide">Bırakılacak yer<input name="dropoff" value="${esc(g('dropoff'))}" placeholder="ör. otel"></label>
+          <label class="f">Araç<input name="vehicle" value="${esc(g('vehicle'))}" placeholder="ör. 46 kişilik otobüs"></label>
+          <label class="f">Şoför (ad, telefon)<input name="driver" value="${esc(g('driver'))}"></label>
+          <label class="f">Rehber<input name="guide" value="${esc(g('guide'))}"></label>
+          <label class="f wide">Plan notu<input name="plan_note" value="${esc(g('plan_note'))}"></label></div>
+          <p class="small muted">Plan, fiyattan ayrıdır; konfirme grupta da değiştirilebilir. Grubu kaydedince işlenir. Tüm planlar Operasyon sayfasında görünür.</p>`, { ok: 'Tamam' });
+        if (!r) return;
+        PLAN_K.forEach((k) => { qs(`[data-k=${k}]`, tr).value = r[k] ?? ''; });
+        pb.textContent = planLabel(r);
+        schedule();
+      }
     });
     qs('#addRoom', main).onclick = () => { rowsEl.rooms.insertAdjacentHTML('beforeend', roomRow({ room_type: 'TRPL', qty: 1 })); schedule(); };
     qs('#addFree', main).onclick = () => { rowsEl.free.insertAdjacentHTML('beforeend', freeRow({ direction: 'in', room_type: 'DBL', qty: 1 })); schedule(); };
@@ -949,19 +1006,50 @@
       schedule();
     };
     async function fillFromContract(silent) {
-      const r = await api('contract', { hotel_id: collect().hotel_id, date: form.check_in.value });
+      const r = await api('contract', { hotel_id: collect().hotel_id, date: form.check_in.value, booking_id: b.id || '' });
       const c = r.contract;
       if (!c) { if (!silent) toast('Bu tarih için sözleşme fiyatı yok. Otel sayfasından ekleyin.', 'err'); return; }
       form.buy_cur.value = c.currency;
+      const map = r.prices || {};
       qsa('tr', rowsEl.rooms).forEach((tr) => {
         const t = qs('[data-k=room_type]', tr).value;
-        const map = { SNGL: c.sngl, DBL: c.dbl, TWIN: c.twin ?? c.dbl, TRPL: c.trpl, QUAD: c.quad ?? (c.dbl ? c.dbl * 2 : null) };
         if (map[t] !== null && map[t] !== undefined) qs('[data-k=buy_price]', tr).value = +map[t];
       });
-      if (!silent) toast('Alış fiyatları sözleşmeden dolduruldu.', 'ok');
+      if (!silent) toast(r.eb ? `Alış sözleşmeden dolduruldu (erken rezervasyon %${c.eb_pct} düşüldü).` : 'Alış fiyatları sözleşmeden dolduruldu.', 'ok');
       schedule();
     }
     qs('#fromContract', main).onclick = () => fillFromContract(false);
+    // Satış = alış x (1 + kâr oranı), alış dövizinden satış dövizine kurla çevrilir
+    qs('#fromMarkup', main).onclick = async () => {
+      const fd = collect();
+      let agId = fd.agency_id;
+      const r = await api('contract', { hotel_id: fd.hotel_id || '', date: form.check_in.value, agency_id: agId || '' });
+      const eur = +(String(form.eur_try.value).replace(',', '.')) || (r.rate ? +r.rate.eur_try : 0);
+      const usd = +(String(form.usd_try.value).replace(',', '.')) || (r.rate ? +r.rate.usd_try : 0);
+      const res = await modal('Satışı kâr oranıyla doldur', `<label class="f">Kâr oranı %<input name="pct" inputmode="decimal" value="${r.markup_pct ?? ''}" placeholder="ör. 15"></label>
+        <label class="chk"><input type="checkbox" name="round" checked> Tam sayıya yuvarla</label>
+        <p class="small muted">${r.markup_pct !== null && r.markup_pct !== undefined ? 'Acentenin kayıtlı kâr oranı yazıldı.' : 'Bu acente için kâr oranı kayıtlı değil; acente sayfasından kaydedebilirsiniz.'} Alış ${esc(fd.buy_cur)}, satış ${esc(fd.sell_cur)}${fd.buy_cur !== fd.sell_cur ? ` · kur: 1 € = ${money(eur)} TL, 1 $ = ${money(usd)} TL` : ''}.</p>`, { ok: 'Doldur' });
+      if (!res) return;
+      const pct = +(String(res.pct).replace(',', '.'));
+      if (!(pct > -100) || res.pct === '') { toast('Kâr oranını yazın.', 'err'); return; }
+      const toTry = (v, c) => c === 'TRY' ? v : c === 'EUR' ? v * eur : v * usd;
+      const fromTry = (v, c) => c === 'TRY' ? v : c === 'EUR' ? v / eur : v / usd;
+      if (fd.buy_cur !== fd.sell_cur && (!eur || !usd)) { toast('Kur girilmemiş; önce Kurlar sayfasından günün kurunu girin.', 'err'); return; }
+      const pp = form.sell_mode.value === 'pp';
+      const mult = S.consts.pp_mult;
+      let n = 0;
+      qsa('tr', rowsEl.rooms).forEach((tr) => {
+        const buy = +(String(qs('[data-k=buy_price]', tr).value).replace(',', '.'));
+        if (!buy) return;
+        let v = fromTry(toTry(buy, fd.buy_cur), fd.sell_cur) * (1 + pct / 100);
+        if (pp) v = v / mult[qs('[data-k=room_type]', tr).value];
+        qs('[data-k=sell_price]', tr).value = res.round ? Math.ceil(v) : Math.round(v * 100) / 100;
+        n++;
+      });
+      if (!n) { toast('Önce alış fiyatlarını girin.', 'err'); return; }
+      toast(`Satış fiyatları %${pct} kârla dolduruldu. Gerekirse değiştirin.`, 'ok');
+      schedule();
+    };
 
     const save = async (extra = {}) => {
       const body = Object.assign(collect(), extra);
@@ -977,6 +1065,7 @@
         const r = await api('booking_save', {}, body);
         S.dirty = false;
         if (isNew && p.talep) { try { await api('talep_link', {}, { id: p.talep, booking_id: r.id }); } catch (er) { /* bağlantı kurulamasa da grup kayıtlı */ } }
+        if (isNew && p.ptalep && b.fromPortal) { try { await api('portal_talep_guncelle', {}, { id: p.ptalep, booking_id: r.id, status: 'quoted' }); } catch (er) { /* grup kayıtlı */ } }
         toast('Grup kaydedildi.', 'ok');
         go('#/grup/' + r.id);
         if (!isNew) route();
@@ -1030,7 +1119,7 @@
 
   /* ================= TALEPLER (site ve uygulama formları) ================= */
   async function viewRequests(main, p) {
-    const d = await api('talepler', { durum: p.durum || '', q: p.q || '' });
+    const [d, pt] = await Promise.all([api('talepler', { durum: p.durum || '', q: p.q || '' }), api('portal_talepler').catch(() => ({ rows: [], statuses: {} }))]);
     const set = (o) => go('#/talepler?' + new URLSearchParams(Object.entries(Object.assign({}, p, o)).filter(([, v]) => v)).toString());
     const total = Object.values(d.counts).reduce((a, b) => a + b, 0);
     const cls = { new: 'st-opsiyon', review: 'st-konaklamada', quoted: 'st-teklif', confirmed: 'st-konfirme', closed: 'st-kapandi' };
@@ -1083,10 +1172,21 @@
         <form id="tq" class="row"><input name="q" value="${esc(p.q || '')}" placeholder="İsim, telefon, e-posta, mesaj ara"><button>Ara</button></form></div>
       <div class="muted small" style="margin-bottom:10px">Sitedeki ve uygulamadaki rezervasyon/teklif formlarından gelen istekler. Müşteri aynı talebi WhatsApp'tan da gönderebilir.${S.egitim ? ' <b>Eğitim bölümündesiniz: talepler gerçektir ve burada değiştirilemez.</b>' : ''}</div>
       ${S.egitim ? '' : notifyBox}
+      ${pt.rows.length ? `<h2 style="margin-top:4px">Acente portalından gelenler <span class="small muted">(${pt.rows.filter((r) => r.status === 'new').length} yeni)</span></h2>
+        <div class="tbl-wrap" style="margin-bottom:16px"><table><thead><tr><th>Tarih</th><th>Acente</th><th>Konaklama</th><th>Oda</th><th>Otel tercihi / mesaj</th><th>Durum</th><th>Grup</th></tr></thead><tbody>
+        ${pt.rows.map((r) => `<tr><td class="nowrap small">${trDT(r.created_at)}<br><span class="muted">${esc(r.user_name || '')}</span></td><td><a href="#/acente/${r.agency_id}">${esc(r.agency || '')}</a></td>
+          <td class="nowrap">${trDate(r.check_in)} – ${trDate(r.check_out)}<br><span class="small muted">${esc(r.board || '')}${r.pax ? ' · ' + r.pax + ' kişi' : ''}</span></td><td>${esc(r.rooms || '')}</td>
+          <td class="small" style="max-width:320px;white-space:pre-wrap" dir="auto">${r.hotel_pref ? '<b>' + esc(r.hotel_pref) + '</b>\n' : ''}${esc(r.message || '')}</td>
+          <td><select data-pts="${r.id}" ${S.egitim ? 'disabled' : ''}>${Object.entries(pt.statuses).map(([k, t]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></td>
+          <td class="nowrap">${r.booking_id ? `<a href="#/grup/${r.booking_id}">${esc(r.booking_code || '#' + r.booking_id)}</a>` : can('booking') && !S.egitim ? `<a class="btn" href="#/grup/yeni?ptalep=${r.id}">Gruba çevir</a>` : '—'}</td></tr>`).join('')}
+        </tbody></table></div><h2>Site ve uygulama talepleri</h2>` : ''}
       ${d.ready ? `<div class="row" style="margin-bottom:12px">${chip('', 'Tümü', total)}${Object.entries(d.statuses).map(([k, t]) => chip(k, t, d.counts[k] || 0)).join('')}</div>
       ${d.rows.map(card).join('') || '<div class="empty">Bu listede talep yok.</div>'}` : '<div class="empty">Talepler veritabanı bulunamadı. Siteden henüz talep gelmemiş olabilir.</div>'}`;
     const tq = qs('#tq', main);
     tq.onsubmit = (e) => { e.preventDefault(); set({ q: tq.q.value.trim() }); };
+    qsa('[data-pts]', main).forEach((sel) => sel.onchange = async () => {
+      try { await api('portal_talep_guncelle', {}, { id: +sel.dataset.pts, status: sel.value }); toast('Acente talebi güncellendi; acente durumu portalda görür.', 'ok'); } catch (er) { toast(er.message, 'err'); route(); }
+    });
     qsa('form.tf', main).forEach((f) => {
       f.oninput = () => { S.dirty = true; };
       f.onsubmit = async (e) => {
@@ -1190,6 +1290,7 @@
     if (id) { const d = await api('ekstre', { id }); saved = d.item; cur = d.check; hotelId = d.item.hotel_id || ''; }
     const stBadge = (s) => s === 'odendi' ? '<span class="badge st-kapandi">Ödendi</span>' : '<span class="badge st-opsiyon">Kontrol edildi</span>';
     main.innerHTML = `<div class="row"><h1>Otel ödemeleri</h1><span class="spacer"></span>${id ? '<a class="btn" href="#/odemeler">+ Yeni ekstre</a>' : ''}</div>
+      <div class="row" style="margin-bottom:10px"><a class="btn primary" href="#/odemeler">Ekstre kontrolü</a><a class="btn" href="#/otel-cari">Otel carileri (borç ve ödemeler)</a></div>
       <div class="small muted" style="margin-bottom:10px">Otelin gönderdiği ödeme ekstresinin fotoğrafını ya da PDF'ini yükleyin. Panel satırları okur, voucher numarasıyla gruplarınızı bulur; tarih, oda adedi, fiyat, free ve toplamları karşılaştırır. Hepsi tutarsa "Ödenebilir" der.</div>
       <div class="panel" id="ekForm">
         <div class="grid2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:end">
@@ -1260,13 +1361,15 @@
         <div class="panel"><div class="row" style="gap:10px;flex-wrap:wrap">
           <input id="ekNote" placeholder="Not (ör. havale tarihi, fark nedeni)" value="${esc(saved?.note || '')}" style="flex:1;min-width:220px">
           <label class="small">Ödeme tarihi <input type="date" id="ekPaid" value="${saved?.paid_at || today()}"></label>
+          ${saved && saved.status === 'odendi' ? '' : '<label class="small chk"><input type="checkbox" id="ekCari" checked> Otel carisine ödeme olarak işle</label>'}
           <button id="ekSave">Kaydet</button><button class="primary" id="ekPay">Ödendi olarak kaydet</button>
         </div>${saved ? `<div class="small muted" style="margin-top:4px">Kayıtlı ekstre #${saved.id} · ${saved.status === 'odendi' ? 'ödendi ' + trDate(saved.paid_at) : 'kontrol edildi'}</div>` : ''}</div>`;
       qs('#ekRe', out).onclick = async () => { try { cur = await api('ekstre_kontrol', {}, { statement: readBack(), hotel_id: hotelSel.value || null }); render(); toast('Yeniden kontrol edildi.', 'ok'); } catch (e) { toast(e.message, 'err'); } };
       const save = async (status) => {
         try {
-          const r = await api('ekstre_kaydet', {}, { id: saved?.id || null, statement: readBack(), hotel_id: hotelSel.value || null, status, note: qs('#ekNote', out).value, paid_at: qs('#ekPaid', out).value });
-          toast(status === 'odendi' ? 'Ödendi olarak kaydedildi.' : 'Kaydedildi.', 'ok'); go('#/odeme/' + r.id);
+          const ck = qs('#ekCari', out);
+          const r = await api('ekstre_kaydet', {}, { id: saved?.id || null, statement: readBack(), hotel_id: hotelSel.value || null, status, note: qs('#ekNote', out).value, paid_at: qs('#ekPaid', out).value, cariye_isle: !!(ck && ck.checked) });
+          toast(status === 'odendi' ? (r.cariye_islendi ? 'Ödendi olarak kaydedildi ve otel carisine işlendi.' : 'Ödendi olarak kaydedildi.' + (ck && ck.checked && !hotelSel.value ? ' Otel seçilmediği için cariye işlenmedi.' : '')) : 'Kaydedildi.', 'ok'); go('#/odeme/' + r.id);
         } catch (e) { toast(e.message, 'err'); }
       };
       qs('#ekSave', out).onclick = () => save('kontrol');
@@ -1285,6 +1388,263 @@
       btn.disabled = false; btn.textContent = 'Ekstreyi oku ve kontrol et';
     };
     if (cur) render();
+  }
+
+  /* ================= KONTENJAN (tüm oteller) ================= */
+  async function viewKontenjan(main, p) {
+    const from = p.from || today(), days = Math.max(7, Math.min(92, +(p.days || 31)));
+    const to = addDays(from, days);
+    const set = (o) => go('#/kontenjan?' + new URLSearchParams(Object.assign({ from, days }, o)).toString());
+    main.innerHTML = '<div class="muted">Kontenjanlar hesaplanıyor…</div>';
+    const d = await api('kontenjan', { from, to });
+    const cell = ([date, res, al, stop]) => {
+      const free = al === null ? null : al - res;
+      const cls = stop ? 'stop' : al === null ? '' : free < 0 ? 'over' : free === 0 ? 'full' : '';
+      return `<div class="c use ${cls}" title="${trDate(date)}: ${res} oda satıldı${al !== null ? ', kontenjan ' + al + (free >= 0 ? ', boş ' + free : ', aşım ' + -free) : ''}${stop ? ', STOP SALE' : ''}">${al === null ? (stop ? '✕' : '') : free}</div>`;
+    };
+    const dates = d.hotels.length ? d.hotels[0].nights.map((n) => n[0]) : [];
+    main.innerHTML = `<div class="row"><h1>Kontenjan</h1></div>
+      <div class="small muted">Otellerin bize verdiği odaların gece gece durumu. Hücredeki sayı <b>boş oda</b>: kırmızı = kontenjan aşıldı, koyu = dolu, ✕ = stop sale. Kontenjan ve stop sale otel sayfasından girilir.</div>
+      <div class="filters">
+        <button id="kPrev">← ${days} gün</button><label class="f">Başlangıç<input type="date" id="kFrom" value="${from}"></label><button id="kNext">${days} gün →</button>
+        <label class="f">Gösterilen<select id="kDays">${[14, 31, 62, 92].map((n) => `<option ${n === days ? 'selected' : ''} value="${n}">${n} gün</option>`).join('')}</select></label>
+        <button id="kToday">Bugün</button></div>
+      ${d.releases.length ? `<div class="panel" style="border-color:var(--info);background:var(--info-bg)"><b>Release: satılmayan boş odalar otele dönüyor</b>
+        <div class="tbl-wrap"><table class="small"><thead><tr><th>Otel</th><th>7 gün içinde release olacak</th><th>Release günü geçmiş</th></tr></thead><tbody>
+        ${d.releases.map((r) => `<tr><td><a href="#/otel/${r.hotel_id}?from=${r.soon_from || r.late_from}">${esc(r.hotel)}</a></td>
+          <td>${r.soon ? `<b>${r.soon} oda-gece</b> (${trDate(r.soon_from)} – ${trDate(r.soon_to)} geceleri), ilk release <b>${trDate(r.soon_first)}</b>` : '—'}</td>
+          <td>${r.late ? `<span class="neg">${r.late} oda-gece</span> (${trDate(r.late_from)} – ${trDate(r.late_to)})` : '—'}</td></tr>`).join('')}
+        </tbody></table></div><div class="small muted">Release günü geçen odalar otele dönmüş olabilir; satmadan önce otelden teyit alın.</div></div>` : ''}
+      ${d.hotels.length ? `<div class="tbl-wrap"><table><thead><tr><th>Otel</th><th class="num">Kontenjan (oda-gece)</th><th class="num">Satılan</th><th class="num">Doluluk</th><th class="num">Boş</th><th class="num">Aşım gecesi</th><th class="num">Stop sale gecesi</th></tr></thead><tbody>
+        ${d.hotels.map((h) => `<tr class="click" data-id="${h.id}"><td><b>${esc(h.name)}</b> <span class="small muted">${esc(h.region || '')}</span></td><td class="num">${nf0.format(h.sum.alloc)}</td><td class="num">${nf0.format(h.sum.sold)}</td>
+          <td class="num">${h.sum.pct === null ? '—' : '%' + h.sum.pct}</td><td class="num">${nf0.format(h.sum.free)}</td><td class="num ${h.sum.over ? 'neg' : ''}">${h.sum.over || ''}</td><td class="num">${h.sum.stop || ''}</td></tr>`).join('')}
+        </tbody></table></div>
+        <h2>Gece gece boş oda</h2>
+        <div class="cal-wrap"><div class="cal" style="grid-template-columns: 190px repeat(${dates.length}, minmax(34px, 1fr))">
+          <div class="c lbl day">Otel</div>${dates.map((x) => { const t = new Date(x + 'T00:00:00'); return `<div class="c day ${[0, 6].includes(t.getDay()) ? 'we' : ''}">${t.getDate()}<div class="dw">${DOW[t.getDay()]}${t.getDate() === 1 || x === from ? ' ' + MON[t.getMonth()] : ''}</div></div>`; }).join('')}
+          ${d.hotels.map((h) => `<div class="c lbl"><a href="#/otel/${h.id}?from=${from}">${esc(h.name)}</a></div>${h.nights.map(cell).join('')}`).join('')}
+        </div></div>` : '<div class="empty">Bu tarihlerde kontenjan girilmiş otel yok. Otel sayfasında "Kontenjan ekle" ile girin.</div>'}`;
+    qs('#kPrev', main).onclick = () => set({ from: addDays(from, -days) });
+    qs('#kNext', main).onclick = () => set({ from: addDays(from, days) });
+    qs('#kToday', main).onclick = () => set({ from: today() });
+    qs('#kFrom', main).onchange = (e) => set({ from: e.target.value });
+    qs('#kDays', main).onchange = (e) => set({ days: e.target.value });
+    qsa('tr.click', main).forEach((r) => r.onclick = () => go(`#/otel/${r.dataset.id}?from=${from}`));
+    S.view = { onRemote: (items) => { if (items.some((i) => ['grup', 'kontenjan'].includes(i.entity))) viewKontenjan(main, p); } };
+  }
+
+  /* ================= OPERASYON: transfer ve tur planı ================= */
+  async function viewOperasyon(main, p) {
+    const from = p.from || today(), days = Math.max(1, Math.min(62, +(p.days || 7)));
+    const to = addDays(from, days);
+    const set = (o) => go('#/operasyon?' + new URLSearchParams(Object.entries(Object.assign({ from, days, q: p.q || '' }, o)).filter(([, v]) => v)).toString());
+    main.innerHTML = '<div class="muted">Yükleniyor…</div>';
+    const d = await api('operasyon', { from, to, q: p.q || '' });
+    const ed = can('booking');
+    const byDay = {};
+    d.rows.forEach((r) => { (byDay[r.day] = byDay[r.day] || []).push(r); });
+    const F = [['service_time', 'Saat', 70, 'time'], ['pickup', 'Alınacak yer', 170], ['dropoff', 'Bırakılacak yer', 150], ['pax', 'Kişi', 50], ['vehicle', 'Araç', 120], ['driver', 'Şoför', 140], ['guide', 'Rehber', 120], ['plan_note', 'Not', 140]];
+    const row = (r) => `<tr data-id="${r.id}" class="${r.planned ? '' : 'unplanned'}">
+      <td class="nowrap"><a href="#/grup/${r.booking_id}">${esc(r.code || '#' + r.booking_id)}</a> ${statusBadge(r.status)}<br><span class="small">${esc(r.hotel || '')}</span><br><span class="small muted">${esc(r.agency || '')}${+r.guests ? ' · ' + r.guests + ' misafir' : ''}</span></td>
+      <td><b>${esc(r.kind)}</b>${r.description ? '<br><span class="small">' + esc(r.description) + '</span>' : ''}${(r.arrival_info || r.departure_info) && /transfer/i.test(r.kind) ? `<br><span class="small muted">${esc([r.arrival_info, r.departure_info].filter(Boolean).join(' / '))}</span>` : ''}</td>
+      <td><input type="date" data-k="service_date" value="${esc(r.service_date || '')}" ${ed ? '' : 'disabled'} style="width:135px"></td>
+      ${F.map(([k, , w, t]) => `<td><input data-k="${k}" ${t ? `type="${t}"` : ''} value="${esc(r[k] ?? '')}" ${ed ? '' : 'disabled'} style="width:${w}px"></td>`).join('')}
+      <td>${ed ? '<button class="link osave" disabled>Kaydet</button>' : ''}</td></tr>`;
+    main.innerHTML = `<div class="row"><h1>Operasyon</h1><span class="spacer"></span><button id="oPrint">Yazdır</button></div>
+      <div class="small muted">Grupların ek hizmetleri (transfer, tur, rehber, tekne…) gün gün. Tarihi girilmemiş hizmet grubun giriş gününde soluk görünür. Burada yazılan plan fiyatı değiştirmez; konfirme grupta da girilebilir.</div>
+      <div class="filters">
+        <button id="oPrev">← ${days} gün</button><label class="f">Başlangıç<input type="date" id="oFrom" value="${from}"></label><button id="oNext">${days} gün →</button>
+        <label class="f">Gösterilen<select id="oDays">${[1, 3, 7, 14, 31].map((n) => `<option ${n === days ? 'selected' : ''} value="${n}">${n === 1 ? 'Tek gün' : n + ' gün'}</option>`).join('')}</select></label>
+        <button id="oToday">Bugün</button><button id="oTom">Yarın</button>
+        <label class="f">Ara (şoför, otel, kod…)<input id="oQ" value="${esc(p.q || '')}"></label></div>
+      ${Object.keys(byDay).length ? Object.entries(byDay).map(([day, rows]) => { const t = new Date(day + 'T00:00:00'); return `<h2>${trDate(day)} ${['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'][t.getDay()]} <span class="small muted">${rows.length} hizmet</span></h2>
+        <div class="tbl-wrap"><table class="ops"><thead><tr><th>Grup</th><th>Hizmet</th><th>Tarih</th>${F.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>`; }).join('')
+        : '<div class="empty">Bu tarihlerde ek hizmet yok. Grubun "Ek hizmetler" bölümüne transfer, tur ya da rehber ekleyin.</div>'}`;
+    qs('#oPrev', main).onclick = () => set({ from: addDays(from, -days) });
+    qs('#oNext', main).onclick = () => set({ from: addDays(from, days) });
+    qs('#oToday', main).onclick = () => set({ from: today(), days: 1 });
+    qs('#oTom', main).onclick = () => set({ from: addDays(today(), 1), days: 1 });
+    qs('#oFrom', main).onchange = (e) => set({ from: e.target.value });
+    qs('#oDays', main).onchange = (e) => set({ days: e.target.value });
+    qs('#oQ', main).onkeydown = (e) => { if (e.key === 'Enter') set({ q: e.target.value.trim() }); };
+    qs('#oPrint', main).onclick = () => window.print();
+    qsa('tr[data-id]', main).forEach((tr) => {
+      const btn = qs('.osave', tr);
+      if (!btn) return;
+      tr.addEventListener('input', () => { btn.disabled = false; btn.textContent = 'Kaydet'; S.dirty = true; });
+      btn.onclick = async () => {
+        const body = { id: +tr.dataset.id };
+        qsa('[data-k]', tr).forEach((el) => { body[el.dataset.k] = el.value; });
+        try { await api('operasyon_kaydet', {}, body); btn.disabled = true; btn.textContent = '✓'; S.dirty = qsa('.osave:not([disabled])', main).length > 0; tr.classList.toggle('unplanned', !body.service_date); toast('Plan kaydedildi.', 'ok'); }
+        catch (er) { toast(er.message, 'err'); }
+      };
+    });
+  }
+
+  /* ================= OTEL CARİSİ ================= */
+  async function viewHotelCariList(main) {
+    const d = await api('otel_cari_liste');
+    const tot = {};
+    d.hotels.forEach((h) => Object.entries(h.totals).forEach(([c, t]) => { tot[c] = tot[c] || { balance: 0, due: 0 }; tot[c].balance += t.balance; tot[c].due += t.due; }));
+    main.innerHTML = `<div class="row"><h1>Otel ödemeleri</h1></div>
+      <div class="row" style="margin-bottom:10px"><a class="btn" href="#/odemeler">Ekstre kontrolü</a><a class="btn primary" href="#/otel-cari">Otel carileri (borç ve ödemeler)</a></div>
+      <div class="small muted" style="margin-bottom:10px">Borç: konfirme, konaklamada ve kapanmış grupların net alışı (free düşülmüş). Ödeme: otele yaptığımız ödemeler. <b>Vadesi gelen</b>: konaklaması bitmiş grupların ödenmemiş kısmı. Ek hizmet alışları (transfer vb.) otel borcuna katılmaz.</div>
+      <div class="totals">${Object.entries(tot).map(([c, t]) => `<div class="card"><div class="l">Otellere borcumuz ${esc(c)} <span class="muted">(vadesi gelen ${money0(t.due)})</span></div><div class="v ${t.balance > 0 ? 'neg' : ''}">${money0(t.balance, c)}</div></div>`).join('') || '<div class="muted small">Henüz konfirme grup ya da ödeme yok.</div>'}</div>
+      <div class="row" style="margin-bottom:8px"><input id="hcQ" type="search" placeholder="Otel ara…" style="max-width:300px"><span class="small muted" id="hcN"></span></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Otel</th><th class="num">Alış (borç)</th><th class="num">Ödenen</th><th class="num">Bakiye</th><th class="num">Vadesi gelen</th><th>Son ödeme</th></tr></thead><tbody>
+      ${d.hotels.map((h) => { const T = Object.entries(h.totals); return `<tr class="click" data-id="${h.id}"><td><b>${esc(h.name)}</b> <span class="small muted">${esc(h.region || '')}</span></td>
+        <td class="num">${T.map(([c, t]) => money0(t.debit, c)).join('<br>')}</td><td class="num">${T.map(([c, t]) => money0(t.credit, c)).join('<br>')}</td>
+        <td class="num">${T.map(([c, t]) => `<b class="${t.balance > 0 ? 'neg' : ''}">${money0(t.balance, c)}</b>`).join('<br>')}</td><td class="num">${T.map(([c, t]) => t.due ? money0(t.due, c) : '—').join('<br>')}</td><td>${trDate(h.last_payment)}</td></tr>`; }).join('') || '<tr><td colspan="6" class="muted">Kayıt yok.</td></tr>'}
+      </tbody></table></div>`;
+    qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/otel-cari/' + r.dataset.id));
+    tableFilter(qs('#hcQ', main), qs('tbody', main), qs('#hcN', main));
+  }
+
+  async function viewHotelCari(main, id) {
+    const d = await api('otel_cari', { id });
+    const c = d.cari, T = Object.entries(c.totals);
+    main.innerHTML = `<div class="row"><a href="#/otel-cari">← Otel carileri</a><span class="spacer"></span><a href="#/otel/${id}">Otel sayfası</a></div>
+      <div class="row"><h1>${esc(d.hotel.name)} · cari</h1></div>
+      <div class="totals">${T.map(([cur, t]) => `<div class="card"><div class="l">Bakiye ${esc(cur)} <span class="muted">(alış ${money0(t.debit)} · ödenen ${money0(t.credit)} · vadesi gelen ${money0(t.due)})</span></div><div class="v ${t.balance > 0 ? 'neg' : ''}">${money(t.balance, cur)}</div></div>`).join('') || '<div class="muted small">Henüz konfirme grup ya da ödeme yok.</div>'}</div>
+      <form class="panel row" id="hpF" style="align-items:flex-end">
+        <label class="f">Tarih<input type="date" name="pay_date" value="${today()}" required></label>
+        <label class="f">Tutar<input name="amount" inputmode="decimal" required style="width:120px"></label>
+        <label class="f">Para<select name="currency">${S.consts.currencies.map((x) => `<option ${x === (T[0] ? T[0][0] : 'USD') ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+        <label class="f">Şekli<select name="method">${Object.entries(c.methods).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:160px">Not<input name="note" placeholder="ör. dekont no, hangi ekstre"></label>
+        <button class="primary">Otele ödeme ekle</button></form>
+      <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th>Hareket</th><th>Açıklama</th><th class="num">Borç (alış)</th><th class="num">Ödeme</th><th class="num">Bakiye</th><th></th></tr></thead><tbody>
+      ${c.rows.map((r) => `<tr><td class="nowrap">${trDate(r.date)}</td><td>${r.type === 'alis' ? `Alış${r.due ? '' : ' <span class="small muted">(konaklama sürüyor)</span>'}` : '<b style="color:var(--ok)">Ödeme</b>'}${r.booking_id ? ` · <a href="#/grup/${r.booking_id}">${esc(r.code || '#' + r.booking_id)}</a>` : ''}${r.statement_id ? ` · <a href="#/odeme/${r.statement_id}">ekstre</a>` : ''}</td><td class="small">${esc(r.text)}</td>
+        <td class="num">${r.debit ? money(r.debit, r.currency) : ''}</td><td class="num">${r.credit ? money(r.credit, r.currency) : ''}</td><td class="num"><b class="${r.balance > 0 ? 'neg' : ''}">${money(r.balance, r.currency)}</b></td>
+        <td>${r.type === 'odeme' ? `<button class="link" data-delhp="${r.id}" style="color:var(--err)" title="Sil">✕</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Hareket yok.</td></tr>'}
+      </tbody></table></div>`;
+    const f = qs('#hpF', main);
+    f.onsubmit = async (e) => { e.preventDefault(); try { await api('otel_odeme_kaydet', {}, Object.assign(Object.fromEntries(new FormData(f)), { hotel_id: id })); toast('Ödeme kaydedildi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); } };
+    qsa('[data-delhp]', main).forEach((b) => b.onclick = async () => {
+      if (!(await confirmBox('Ödemeyi sil', 'Bu ödeme kaydı silinecek (işlem kaydında kalır).', 'Sil', true))) return;
+      try { await api('otel_odeme_sil', {}, { id: +b.dataset.delhp }); toast('Ödeme silindi.', 'ok'); route(); } catch (er) { toast(er.message, 'err'); }
+    });
+  }
+
+  /* ================= FATURA LİSTESİ (muhasebe) ================= */
+  async function viewInvoices(main, p) {
+    const y = new Date().getFullYear(), m = new Date().getMonth();
+    const first = (yy, mm) => iso(new Date(yy, mm, 1));
+    const pre = [['Bu ay', first(y, m), first(y, m + 1)], ['Geçen ay', first(y, m - 1), first(y, m)], ['Son 3 ay', first(y, m - 2), first(y, m + 1)], ['Bu yıl', `${y}-01-01`, `${y + 1}-01-01`]];
+    const from = p.from || pre[0][1], to = p.to || pre[0][2], durum = p.durum || '';
+    const set = (o) => go('#/faturalar?' + new URLSearchParams(Object.entries(Object.assign({ from, to, durum }, o)).filter(([, v]) => v)).toString());
+    main.innerHTML = '<div class="muted">Yükleniyor…</div>';
+    const d = await api('faturalar', { from, to, durum });
+    main.innerHTML = `<div class="row"><h1>Faturalar</h1><span class="spacer"></span><a class="btn" href="api.php?a=fatura_csv&from=${from}&to=${to}&durum=${durum}">Excel'e aktar (muhasebe / EDM için)</a></div>
+      <div class="small muted">Çıkışı ${trDate(from)} – ${trDate(addDays(to, -1))} arasında olan konfirme grupların acenteye kesilecek tutarı (oda satışı + ek hizmetler). Resmi fatura EDM'den kesilir; kesilince numarasını buraya yazın, liste takip eder.</div>
+      <div class="filters">
+        <div class="quick">${pre.map(([l, f, t]) => `<button data-f="${f}" data-t="${t}" class="${f === from && t === to ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <label class="f">Başlangıç<input type="date" id="iF" value="${from}"></label><label class="f">Bitiş<input type="date" id="iT" value="${to}"></label>
+        <label class="f">Durum<select id="iD"><option value="">Hepsi</option><option value="kesilmedi" ${durum === 'kesilmedi' ? 'selected' : ''}>Kesilmeyenler</option><option value="kesildi" ${durum === 'kesildi' ? 'selected' : ''}>Kesilenler</option></select></label></div>
+      <div class="totals">${Object.entries(d.totals).map(([c, v]) => `<div class="card"><div class="l">Toplam ${esc(c)}</div><div class="v">${money0(v, c)}</div></div>`).join('')}<div class="card"><div class="l">Faturası kesilmemiş</div><div class="v ${d.open ? 'neg' : ''}">${d.open} grup</div></div></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Grup</th><th>Acente / fatura bilgisi</th><th>Otel</th><th>Çıkış</th><th class="num">Tutar</th><th class="num">TL karşılığı</th><th>Fatura no</th><th>Fatura tarihi</th><th></th></tr></thead><tbody>
+      ${d.rows.map((r) => `<tr data-id="${r.id}"><td class="nowrap"><a href="#/grup/${r.id}">${esc(r.code || '#' + r.id)}</a><br><span class="small muted">${r.rooms} oda · ${r.nights} gece</span></td>
+        <td><a href="#/acente/${r.agency_id}">${esc(r.agency || '')}</a>${r.invoice_info ? `<div class="small muted" style="white-space:pre-wrap">${esc(r.invoice_info)}</div>` : '<div class="small neg">Fatura bilgisi yok (acente sayfasından ekleyin)</div>'}</td>
+        <td class="small">${esc(r.hotel || '')}</td><td class="nowrap">${trDate(r.check_out)}</td>
+        <td class="num">${Object.entries(r.amounts).map(([c, v]) => money(v, c)).join('<br>')}</td><td class="num">${r.try === null ? '—' : money0(r.try, 'TRY')}</td>
+        <td><input data-k="invoice_no" value="${esc(r.invoice_no || '')}" style="width:120px" placeholder="—"></td><td><input type="date" data-k="invoice_date" value="${esc(r.invoice_date || '')}" style="width:135px"></td>
+        <td class="nowrap"><button class="link isave" disabled>Kaydet</button> <a class="small" href="fatura.php?id=${r.id}" target="_blank" rel="noopener">Proforma</a></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Bu aralıkta konfirme grup yok.</td></tr>'}
+      </tbody></table></div>`;
+    qsa('.quick button', main).forEach((b) => b.onclick = () => set({ from: b.dataset.f, to: b.dataset.t }));
+    const chg = () => set({ from: qs('#iF', main).value, to: qs('#iT', main).value, durum: qs('#iD', main).value });
+    ['#iF', '#iT', '#iD'].forEach((sel) => qs(sel, main).onchange = chg);
+    qsa('tr[data-id]', main).forEach((tr) => {
+      const btn = qs('.isave', tr);
+      tr.addEventListener('input', () => { btn.disabled = false; btn.textContent = 'Kaydet'; });
+      btn.onclick = async () => {
+        try {
+          const r = await api('fatura_isaretle', {}, { id: +tr.dataset.id, invoice_no: qs('[data-k=invoice_no]', tr).value, invoice_date: qs('[data-k=invoice_date]', tr).value });
+          qs('[data-k=invoice_date]', tr).value = r.invoice_date || '';
+          btn.disabled = true; btn.textContent = '✓'; toast(r.invoice_no ? 'Fatura numarası kaydedildi.' : 'Fatura numarası silindi.', 'ok');
+        } catch (er) { toast(er.message, 'err'); }
+      };
+    });
+  }
+
+  /* ================= ACENTE PORTALI ================= */
+  async function renderPortal() {
+    stopPoll(); asstHide();
+    document.body.classList.remove('egitim');
+    const { parts } = parseHash();
+    const sec = parts[0] || '';
+    $app.innerHTML = `<header class="top"><a class="brand" href="#/">Lux Locations · Acente portalı</a>
+        <nav>${[['', 'Gruplarım'], ['talep', 'Yeni talep'], ['hesap', 'Hesap özeti'], ['sifre', 'Şifre']].map(([h, t]) => `<a href="#/${h}" class="${sec === h || (h === '' && sec === 'grup') ? 'on' : ''}">${t}</a>`).join('')}</nav>
+        <div class="user"><span>${esc(S.user.name)}</span><button id="btnOut">Çıkış</button></div></header><main id="main"><div class="muted">Yükleniyor…</div></main>`;
+    qs('#btnOut').onclick = async () => { await api('logout', {}, {}); await loadSession(); renderLogin(); };
+    const main = qs('#main');
+    try {
+      if (sec === 'sifre') return viewAccount(main);
+      if (sec === 'grup') return await portalGroup(main, +parts[1]);
+      const d = await api('portal');
+      const st = (s) => `<span class="badge st-${esc(s)}">${esc(d.statuses[s] || s)}</span>`;
+      if (sec === 'talep') {
+        main.innerHTML = `<h1>Yeni talep</h1><div class="small muted" style="margin-bottom:10px">İsteğinizi yazın; ekibimiz fiyat ve müsaitlikle size döner. Taleplerinizin durumunu aşağıda görürsünüz.</div>
+          <form class="panel" id="ptF" style="max-width:720px"><div class="grid-form">
+            <label class="f">Giriş<input type="date" name="check_in" min="${today()}" required></label>
+            <label class="f">Çıkış<input type="date" name="check_out" min="${addDays(today(), 1)}" required></label>
+            <label class="f">Pansiyon<select name="board"><option value="BB">BB (oda kahvaltı)</option><option value="HB">HB (yarım pansiyon)</option><option value="FB">FB (tam pansiyon)</option><option value="RO">RO (yalnız oda)</option></select></label>
+            <label class="f">Kişi sayısı<input name="pax" inputmode="numeric"></label>
+            <label class="f wide">Odalar<input name="rooms" required placeholder="ör. 20 DBL, 5 TRPL, 2 SNGL"></label>
+            <label class="f wide">Otel ya da bölge tercihi<input name="hotel_pref" placeholder="ör. Laleli 4 yıldız ya da otel adı"></label>
+            <label class="f wide">Mesaj<textarea name="message" placeholder="Transfer, rehber, tur, özel istekler…"></textarea></label></div>
+            <div class="actions"><button class="primary">Talebi gönder</button></div></form>
+          <h2>Taleplerim</h2>
+          <div class="tbl-wrap"><table><thead><tr><th>Gönderildi</th><th>Konaklama</th><th>Odalar</th><th>Durum</th><th>Grup</th></tr></thead><tbody>
+          ${d.requests.map((r) => `<tr><td>${trDT(r.created_at)}</td><td>${trDate(r.check_in)} – ${trDate(r.check_out)}</td><td>${esc(r.rooms || '')}</td><td>${esc(d.req_statuses[r.status] || r.status)}</td><td>${r.booking_id ? `<a href="#/grup/${r.booking_id}">${esc(r.booking_code || '#' + r.booking_id)}</a>` : '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Henüz talep yok.</td></tr>'}
+          </tbody></table></div>`;
+        const f = qs('#ptF', main);
+        f.onsubmit = async (e) => { e.preventDefault(); try { await api('portal_talep', {}, Object.fromEntries(new FormData(f))); toast('Talebiniz gönderildi. En kısa sürede dönüş yapacağız.', 'ok'); renderPortal(); } catch (er) { toast(er.message, 'err'); } };
+        return;
+      }
+      if (sec === 'hesap') {
+        const c = d.cari, T = Object.entries(c.totals);
+        main.innerHTML = `<h1>Hesap özeti</h1><div class="small muted">Konfirme gruplarınızın tutarı ve ödemeleriniz. Bakiye, ödenmesi gereken tutardır.</div>
+          <div class="totals">${T.map(([cur, t]) => `<div class="card"><div class="l">Bakiye ${esc(cur)} <span class="muted">(toplam ${money0(t.debit)} · ödenen ${money0(t.credit)})</span></div><div class="v ${t.balance > 0 ? 'neg' : ''}">${money(t.balance, cur)}</div></div>`).join('') || '<div class="muted small">Henüz konfirme grup yok.</div>'}</div>
+          <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th>Hareket</th><th>Açıklama</th><th class="num">Tutar</th><th class="num">Ödeme</th><th class="num">Bakiye</th></tr></thead><tbody>
+          ${c.rows.map((r) => `<tr><td>${trDate(r.date)}</td><td>${r.type === 'satis' ? 'Grup' : '<b style="color:var(--ok)">Ödeme</b>'}${r.booking_id ? ` · <a href="#/grup/${r.booking_id}">${esc(r.code || '#' + r.booking_id)}</a>` : ''}</td><td class="small">${esc(r.text)}</td>
+            <td class="num">${r.debit ? money(r.debit, r.currency) : ''}</td><td class="num">${r.credit ? money(r.credit, r.currency) : ''}</td><td class="num"><b>${money(r.balance, r.currency)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="muted">Hareket yok.</td></tr>'}
+          </tbody></table></div>`;
+        return;
+      }
+      main.innerHTML = `<div class="row"><h1>${esc(d.agency.name)}</h1><span class="spacer"></span><a class="btn primary" href="#/talep">+ Yeni talep</a></div>
+        <div class="row" style="margin-bottom:8px"><input id="pgQ" type="search" placeholder="Otel, kod ya da tarih ara…" style="max-width:320px"><span class="small muted" id="pgN"></span></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Kod</th><th>Otel</th><th>Giriş</th><th>Çıkış</th><th class="num">Gece</th><th class="num">Oda</th><th>Durum</th><th class="num">Tutar</th><th></th></tr></thead><tbody>
+        ${d.bookings.map((b) => `<tr class="click" data-id="${b.id}"><td>${esc(b.code || '#' + b.id)}</td><td>${esc(b.hotel)} <span class="small muted">${starStr(b.stars)}</span></td><td>${trDate(b.check_in)}</td><td>${trDate(b.check_out)}</td><td class="num">${b.nights}</td><td class="num">${b.rooms}</td>
+          <td>${st(b.status)}${b.option_until ? `<div class="small muted">opsiyon ${trDate(b.option_until)}</div>` : ''}</td><td class="num">${money(b.sell_net, b.sell_cur)}${Object.entries(b.services).map(([c, v]) => '<br><span class="small">+ ' + money(v, c) + '</span>').join('')}</td>
+          <td class="nowrap">${b.voucher ? `<a class="btn" href="belge.php?tip=voucher&id=${b.id}" target="_blank" rel="noopener">Voucher</a>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Henüz grubunuz yok. "Yeni talep" ile istek gönderebilirsiniz.</td></tr>'}
+        </tbody></table></div>`;
+      qsa('tr.click', main).forEach((r) => r.onclick = (e) => { if (!e.target.closest('a')) go('#/grup/' + r.dataset.id); });
+      tableFilter(qs('#pgQ', main), qs('tbody', main), qs('#pgN', main));
+    } catch (e) { main.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  async function portalGroup(main, id) {
+    const g = await api('portal_grup', { id });
+    const ROOM = { SNGL: 'Single', DBL: 'Double', TWIN: 'Twin', TRPL: 'Triple', QUAD: 'Quad' };
+    main.innerHTML = `<div class="row"><a href="#/">← Gruplarım</a><span class="spacer"></span>
+        <a class="btn" href="belge.php?tip=teklif&id=${g.id}" target="_blank" rel="noopener">Teklif (PDF)</a>${g.voucher ? `<a class="btn primary" href="belge.php?tip=voucher&id=${g.id}" target="_blank" rel="noopener">Voucher (PDF)</a>` : ''}</div>
+      <div class="row"><h1>${esc(g.code || '#' + g.id)} · ${esc(g.hotel.name)}</h1>${statusBadge(g.status)}</div>
+      <div class="muted">${starStr(g.hotel.stars)} ${esc(g.hotel.region || '')}${g.hotel.address ? ' · ' + esc(g.hotel.address) : ''}</div>
+      <div class="panel" style="margin-top:12px"><div class="grid-form">
+        <div><div class="small muted">Giriş</div><b>${trDate(g.check_in)}</b></div><div><div class="small muted">Çıkış</div><b>${trDate(g.check_out)}</b></div><div><div class="small muted">Gece</div><b>${g.nights}</b></div>
+        <div><div class="small muted">Pansiyon</div><b>${esc(g.board || '')}</b></div>${g.option_until ? `<div><div class="small muted">Opsiyon</div><b>${trDate(g.option_until)}</b></div>` : ''}${g.hotel_conf_code ? `<div><div class="small muted">Otel konfirme no</div><b>${esc(g.hotel_conf_code)}</b></div>` : ''}</div></div>
+      <h2>Odalar ve fiyat</h2>
+      <div class="tbl-wrap"><table><thead><tr><th>Oda</th><th class="num">Adet</th><th class="num">${g.sell_mode === 'pp' ? 'Kişi başı / gece' : 'Oda / gece'}</th><th class="num">Toplam</th></tr></thead><tbody>
+        ${g.rooms.map((r) => `<tr><td>${esc(ROOM[r.room_type] || r.room_type)}</td><td class="num">${r.qty}</td><td class="num">${money(r.price, g.sell_cur)}</td><td class="num">${money(r.total, g.sell_cur)}</td></tr>`).join('')}
+        ${g.free_out.length ? `<tr><td colspan="3">Ücretsiz oda: ${g.free_out.map((f) => f.qty + ' ' + esc(f.room_type)).join(', ')}</td><td class="num">− ${money(g.free_out_amount, g.sell_cur)}</td></tr>` : ''}
+        <tr><th colspan="3" style="text-align:right">Konaklama toplamı</th><th class="num">${money(g.sell_net, g.sell_cur)}</th></tr>
+      </tbody></table></div>
+      ${g.services.length ? `<h2>Ek hizmetler</h2><div class="tbl-wrap"><table><thead><tr><th>Hizmet</th><th>Tarih / saat</th><th>Nereden → nereye</th><th class="num">Tutar</th></tr></thead><tbody>
+        ${g.services.map((s) => `<tr><td><b>${esc(s.kind)}</b>${s.description ? ' · ' + esc(s.description) : ''}</td><td>${s.date ? trDate(s.date) + (s.time ? ' ' + esc(s.time) : '') : '—'}</td><td>${esc([s.pickup, s.dropoff].filter(Boolean).join(' → ')) || '—'}</td><td class="num">${s.sell ? money(s.sell, s.currency) : '—'}</td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+      <h2>Misafirler</h2>
+      ${g.guests.length ? `<div class="tbl-wrap"><table><thead><tr><th>Oda</th><th>Ad soyad</th><th></th></tr></thead><tbody>${g.guests.map((x) => `<tr><td>${x.room_no} ${esc(x.room_type || '')}</td><td>${esc(x.name)}</td><td class="small">${x.pax !== 'ADL' ? esc(x.pax) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">Misafir listesi henüz girilmedi. İsim listesini e-postayla gönderebilirsiniz.</div>'}
+      ${g.arrival_info || g.departure_info ? `<div class="small" style="margin-top:8px">Geliş: ${esc(g.arrival_info || '—')} · Dönüş: ${esc(g.departure_info || '—')}</div>` : ''}`;
   }
 
   /* ================= ACENTELER ================= */
@@ -1331,6 +1691,7 @@
       <label class="f">Sorumlu (bizden)<input name="owner" value="${esc(v.owner || '')}"></label>
       <label class="f wide">Diğer yazımlar (virgülle; ör. Soco, Soca)<input name="aliases" value="${esc(v.aliases || '')}"></label>
       <label class="f wide">İletişim<textarea name="contact">${esc(v.contact || '')}</textarea></label>
+      <label class="f">Kâr oranı % (satış = alış + bu oran)<input name="markup_pct" inputmode="decimal" value="${v.markup_pct ?? ''}" placeholder="ör. 15"></label>
       <label class="f wide">Ödeme anlaşması<textarea name="payment_terms" placeholder="ör. Aynı gün veya ertesi gün öder, her cuma 1.000 USD">${esc(v.payment_terms || '')}</textarea></label>
       <label class="f wide">Fatura bilgileri (unvan, adres, vergi no)<textarea name="invoice_info" placeholder="ör. SOCO TRAVEL SRL&#10;Str. Victoriei 12, București, Romania&#10;VAT: RO12345678">${esc(v.invoice_info || '')}</textarea></label>
       <label class="f wide">Notlar<textarea name="notes">${esc(v.notes || '')}</textarea></label>
@@ -1344,7 +1705,7 @@
     const a = await api('agency', { id });
     main.innerHTML = `<div class="row"><a href="#/acenteler">← Acenteler</a></div>
       <div class="row"><h1>${esc(a.name)}</h1><span class="spacer"></span>${can('agency') ? '<button id="editAg">Düzenle</button>' : ''}${can('booking') ? '' : ''}</div>
-      <div class="muted">${esc(a.country || '')}${a.owner ? ' · Sorumlu: ' + esc(a.owner) : ''}${a.aliases ? ' · Diğer yazımlar: ' + esc(a.aliases) : ''}</div>
+      <div class="muted">${esc(a.country || '')}${a.owner ? ' · Sorumlu: ' + esc(a.owner) : ''}${a.aliases ? ' · Diğer yazımlar: ' + esc(a.aliases) : ''}${a.markup_pct !== null && a.markup_pct !== undefined && a.markup_pct !== '' ? ' · Kâr oranı: %' + esc(+a.markup_pct) : ''}</div>
       ${a.payment_terms ? `<div class="banner" style="margin-top:10px">Ödeme anlaşması: ${esc(a.payment_terms)}</div>` : ''}
       ${a.contact ? `<div class="small" style="white-space:pre-wrap">${esc(a.contact)}</div>` : ''}
       ${a.notes ? `<div class="small muted" style="white-space:pre-wrap">${esc(a.notes)}</div>` : ''}
@@ -1445,7 +1806,7 @@
       <div class="small muted" style="margin-bottom:10px">Pasif oteller ızgarada görünmez ama eski grupları saklanır.</div>
       <div class="row" style="margin-bottom:8px"><input id="hlQ" type="search" placeholder="Otel ya da bölge ara…" style="max-width:340px"><span class="small muted" id="hlN"></span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Otel</th><th>Yıldız</th><th>Bölge</th><th>Durum</th></tr></thead><tbody>
-      ${d.hotels.map((h) => `<tr class="click" data-id="${h.id}"><td>${esc(h.name)}</td><td>${h.stars ? '★'.repeat(+h.stars) : ''}</td><td>${esc(h.region || '')}</td><td>${+h.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Henüz otel yok.</td></tr>'}
+      ${d.hotels.map((h) => `<tr class="click" data-id="${h.id}"><td>${esc(h.name)}</td><td>${h.stars ? starStr(h.stars) : ''}</td><td>${esc(h.region || '')}</td><td>${+h.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Henüz otel yok.</td></tr>'}
       </tbody></table></div>`;
     qs('#addH', main).onclick = () => hotelForm();
     qs('#bulkH', main).onclick = () => hotelBulkImport();
@@ -1459,23 +1820,30 @@
     main.innerHTML = `<div class="row"><h1>Kullanıcılar</h1><span class="spacer"></span><button class="primary" id="addU">+ Kullanıcı ekle</button></div>
       <div class="small muted" style="margin-bottom:10px">Her çalışana ayrı kullanıcı açın; işlem kaydında kimin ne yaptığı bu adla görünür. Ayrılan çalışanı silmek yerine pasif yapın.</div>
       <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th>Kullanıcı adı</th><th>Rol</th><th>Durum</th><th>Son giriş</th><th></th></tr></thead><tbody>
-      ${d.users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${esc(S.consts.roles[u.role] || u.role)}</td><td>${+u.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td><td>${trDT(u.last_login)}</td><td><button class="link" data-u="${u.id}">Düzenle</button></td></tr>`).join('')}
+      ${d.users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${esc(S.consts.roles[u.role] || u.role)}${u.role === 'acente' ? ' · ' + esc(u.agency_name || '?') : ''}</td><td>${+u.active ? 'Aktif' : '<span class="badge st-iptal">Pasif</span>'}</td><td>${trDT(u.last_login)}</td><td><button class="link" data-u="${u.id}">Düzenle</button></td></tr>`).join('')}
       </tbody></table></div>
       <h2>Roller</h2><div class="panel small">
         <b>Yönetici:</b> her şey; konfirme grubun fiyatını değiştirir, zararlı grubu onaylar, kullanıcı ekler, işlem kaydını ve yedeği görür.<br>
         <b>Operasyon:</b> grup, otel, sözleşme fiyatı, acente ve kur girer.<br>
         <b>Rezervasyon:</b> grup, otel ve acente girer.<br>
         <b>Muhasebe:</b> kur ve acente bilgisi girer, her şeyi görür.<br>
-        Alış ve satış fiyatlarını tüm roller görür.</div>`;
+        <b>Acente (portal):</b> dışarıdaki acente için. Yalnız kendi gruplarını (satış fiyatıyla), voucher ve teklifini, carisini görür ve yeni talep gönderir. Alış, kâr ve diğer acenteler görünmez.<br>
+        Alış ve satış fiyatlarını çalışan rollerinin hepsi görür.</div>`;
+    const agList = (await api('agency_names').catch(() => ({ agencies: [] }))).agencies || [];
     const form = async (u) => {
       const v = u || { role: 'operasyon', active: 1 };
       const r = await modal(u ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı', `<div class="grid-form">
         <label class="f wide">Ad soyad<input name="name" value="${esc(v.name || '')}"></label>
         ${u ? '' : '<label class="f">Kullanıcı adı<input name="username" autocapitalize="none" placeholder="ör. ceren"></label>'}
         <label class="f">Rol<select name="role">${Object.entries(S.consts.roles).map(([k, t]) => `<option value="${k}" ${k === v.role ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="f" id="uAg" style="${v.role === 'acente' ? '' : 'display:none'}">Acente<select name="agency_id"><option value="">—</option>${agList.map((a) => `<option value="${a.id}" ${a.id == v.agency_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
         <label class="f">${u ? 'Yeni şifre (değişmeyecekse boş)' : 'Şifre (en az 8)'}<input name="password" type="text" autocomplete="new-password"></label>
         ${u ? `<label class="chk"><input type="checkbox" name="active" ${+v.active ? 'checked' : ''}> Aktif</label>` : ''}</div>
-        <p class="small muted">Şifreyi çalışana kendiniz iletin; ilk girişte "Hesabım" sayfasından değiştirmesini isteyin.</p>`, { ok: 'Kaydet' });
+        <p class="small muted">Şifreyi çalışana (ya da acenteye) kendiniz iletin; ilk girişte "Hesabım" sayfasından değiştirmesini isteyin.</p>`, { ok: 'Kaydet', onOpen: (bg) => {
+          const rs = qs('[name=role]', bg);
+          rs.onchange = () => { qs('#uAg', bg).style.display = rs.value === 'acente' ? '' : 'none'; };
+          agencyCombo(bg, agList);
+        } });
       if (!r) return;
       try { await api('user_save', {}, Object.assign(r, u ? { id: u.id } : {})); toast('Kullanıcı kaydedildi.', 'ok'); route(); } catch (e) { toast(e.message, 'err'); }
     };
@@ -1794,6 +2162,7 @@
   const NEXT = (() => { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/admin\/[\w\-\/.?=&%]*$/.test(n) && !n.includes('..') ? n : ''; })();
   function start() {
     if (!S.user) { asstHide(); return renderLogin(); }
+    if (S.user.role === 'acente') return renderPortal();
     if (NEXT) { location.replace(NEXT); return; }
     asstMount();
     S.lastAudit = 0;

@@ -38,6 +38,41 @@ function contract_price(array $c, string $type): ?float {
     return ($v === null || $v === '') ? null : (float)$v;
 }
 
+/** Erken rezervasyon indirimi bu grup için geçerli mi? $bookDate: grubun açıldığı gün. */
+function contract_eb_active(array $c, string $bookDate): bool {
+    return !empty($c['eb_until']) && (float)($c['eb_pct'] ?? 0) > 0 && $bookDate <= $c['eb_until'];
+}
+
+/** Sözleşmeden beklenen alış (erken rezervasyon indirimi düşülmüş). */
+function contract_effective(array $c, string $type, string $bookDate): ?float {
+    $p = contract_price($c, $type);
+    if ($p === null) return null;
+    return contract_eb_active($c, $bookDate) ? round($p * (1 - (float)$c['eb_pct'] / 100), 2) : $p;
+}
+
+/** Grubun gecelerinde kontenjan ve stop sale durumu (diğer aktif gruplar + bu grup). */
+function allotment_check(int $hotelId, string $in, string $out, ?int $selfId, int $myRooms, ?PDO $pdo = null): array {
+    $al = q_all('SELECT date_from, date_to, rooms, stop_sale FROM hotel_allotments WHERE hotel_id = ? AND date_from < ? AND date_to >= ?', [$hotelId, $out, $in], $pdo);
+    if (!$al) return ['has' => false, 'over' => [], 'stop' => [], 'max_res' => 0, 'max_al' => null];
+    $st = implode(',', array_map(fn($x) => "'$x'", ACTIVE_STATUSES));
+    $others = q_all("SELECT b.check_in, b.check_out, b.rooms_reserved, (SELECT SUM(qty) FROM booking_rooms r WHERE r.booking_id = b.id) AS q FROM bookings b
+        WHERE b.hotel_id = ? AND b.deleted = 0 AND b.status IN ($st) AND b.id <> ? AND b.check_in < ? AND b.check_out > ?", [$hotelId, $selfId ?: 0, $out, $in], $pdo);
+    $over = []; $stop = []; $maxRes = 0; $maxAl = null;
+    for ($d = $in, $i = 0; $d < $out && $i < 400; $d = date('Y-m-d', strtotime("$d +1 day")), $i++) {
+        $cap = null; $closed = false;
+        foreach ($al as $a) {
+            if ($a['date_from'] > $d || $a['date_to'] < $d) continue;
+            if ((int)$a['stop_sale']) $closed = true; else $cap = ($cap ?? 0) + (int)$a['rooms'];
+        }
+        $res = $myRooms;
+        foreach ($others as $o) if ($o['check_in'] <= $d && $o['check_out'] > $d) $res += max((int)$o['q'], (int)$o['rooms_reserved']);
+        if ($closed) $stop[] = $d;
+        if ($cap !== null) { $maxAl = max($maxAl ?? 0, $cap); if ($res > $cap) $over[] = [$d, $res, $cap]; }
+        $maxRes = max($maxRes, $res);
+    }
+    return ['has' => true, 'over' => $over, 'stop' => $stop, 'max_res' => $maxRes, 'max_al' => $maxAl];
+}
+
 function num($v): ?float {
     if ($v === null || $v === '') return null;
     if (is_string($v)) $v = str_replace(',', '.', trim($v));
@@ -100,6 +135,14 @@ function calc_booking(array $b, ?PDO $pdo = null): array {
             $freeOut += $qty * $nights * (float)$sellPer[$type];
         }
     }
+    // Free odalar oda tipindeki adetten fazla olamaz (fazla girilirse alış/satış eksiye düşer, kâr şişer)
+    $qtyBy = [];
+    foreach (($b['rooms'] ?? []) as $r) if (in_array($r['room_type'] ?? '', ROOM_TYPES, true)) $qtyBy[$r['room_type']] = ($qtyBy[$r['room_type']] ?? 0) + max(0, (int)($r['qty'] ?? 0));
+    $freeBy = ['in' => [], 'out' => []];
+    foreach (($b['free'] ?? []) as $f) { $t = $f['room_type'] ?? ''; $dir = ($f['direction'] ?? '') === 'in' ? 'in' : 'out'; $freeBy[$dir][$t] = ($freeBy[$dir][$t] ?? 0) + max(0, (int)($f['qty'] ?? 0)); }
+    foreach ($freeBy as $dir => $types) foreach ($types as $t => $n) {
+        if (isset($qtyBy[$t]) && $n > $qtyBy[$t]) $warn('error', 'free_fazla', ($dir === 'in' ? 'Otelden alınan' : 'Acenteye verilen') . " free $t ($n) grubun $t oda sayısından ({$qtyBy[$t]}) fazla.");
+    }
     $buyNet = $buyTotal - $freeIn;
     $sellNet = $sellTotal - $freeOut;
 
@@ -144,6 +187,8 @@ function calc_booking(array $b, ?PDO $pdo = null): array {
 
     // Sözleşme karşılaştırması
     $contract = null;
+    $selfId = !empty($b['id']) ? (int)$b['id'] : null;
+    $bookDate = $selfId ? (substr((string)q_val('SELECT created_at FROM bookings WHERE id = ?', [$selfId], $pdo), 0, 10) ?: date('Y-m-d')) : date('Y-m-d');
     if (!empty($b['hotel_id']) && !empty($b['check_in'])) {
         $contract = contract_for((int)$b['hotel_id'], $b['check_in'], $pdo);
         if (!$contract) {
@@ -153,11 +198,22 @@ function calc_booking(array $b, ?PDO $pdo = null): array {
             if ($contract['currency'] !== $buyCur) {
                 $diff[] = "döviz sözleşmede {$contract['currency']}, girilen $buyCur";
             } else {
+                $eb = contract_eb_active($contract, $bookDate);
                 foreach ($buyPer as $type => $price) {
-                    $cp = contract_price($contract, $type);
-                    if ($cp !== null && $price !== null && abs($cp - $price) > 0.009) $diff[] = "$type sözleşmede " . fmt_num($cp) . ", girilen " . fmt_num($price);
+                    $cp = contract_effective($contract, $type, $bookDate);
+                    if ($cp !== null && $price !== null && abs($cp - $price) > 0.009) $diff[] = "$type sözleşmede " . fmt_num($cp) . ($eb ? ' (erken rez. %' . fmt_num((float)$contract['eb_pct']) . ' düşülmüş)' : '') . ", girilen " . fmt_num($price);
                 }
             }
+            if ($eb ?? false) $warn('info', 'erken_rez', 'Erken rezervasyon indirimi geçerli: %' . fmt_num((float)$contract['eb_pct']) . ' (' . date('d.m.Y', strtotime($contract['eb_until'])) . ' tarihine kadar açılan gruplar).');
+            $minN = (int)($contract['min_nights'] ?? 0);
+            if ($minN > 0 && $nights > 0 && $nights < $minN) $warn('warn', 'min_gece', "Sözleşmede en az $minN gece konaklama var; bu grup $nights gece.");
+            if ($nights > 1) {
+                $last = date('Y-m-d', strtotime($b['check_out'] . ' -1 day'));
+                $c2 = contract_for((int)$b['hotel_id'], $last, $pdo);
+                if (!$c2) $warn('warn', 'sozlesme_bitiyor', 'Sözleşme dönemi ' . date('d.m.Y', strtotime($contract['date_to'])) . ' tarihinde bitiyor; sonraki geceler için sözleşme fiyatı yok.');
+                elseif ((int)$c2['id'] !== (int)$contract['id']) $warn('warn', 'iki_donem', 'Konaklama iki sözleşme dönemine yayılıyor: ' . date('d.m.Y', strtotime($c2['date_from'])) . ' gecesinden itibaren fiyat farklı olabilir (DBL ' . fmt_num((float)($c2['dbl'] ?? 0)) . " {$c2['currency']}). Alışı buna göre girin.");
+            }
+            if (!empty($contract['chd_policy'])) $warn('info', 'cocuk', 'Çocuk politikası: ' . $contract['chd_policy']);
             if ($diff) {
                 $hasNote = trim((string)($b['buy_note'] ?? '')) !== '';
                 $warn($hasNote ? 'warn' : 'error', 'sozlesme_farki', 'Alış sözleşmeden farklı: ' . implode('; ', $diff) . ($hasNote ? ' (neden yazılmış)' : '. "Alış notu" alanına nedenini yazın.'));
@@ -167,6 +223,19 @@ function calc_booking(array $b, ?PDO $pdo = null): array {
                 $expected = intdiv($rooms, $every);
                 if ($expected !== $freeInRooms) $warn('warn', 'free_kural', "Sözleşmeye göre $rooms odada $expected {$contract['free_type']} free alınmalı; girilen $freeInRooms.");
             }
+        }
+    }
+    // Kontenjan ve stop sale
+    if (!empty($b['hotel_id']) && $nights > 0 && ($b['status'] ?? '') !== 'iptal') {
+        $mine = max($rooms, (int)($b['rooms_reserved'] ?? 0));
+        $ac = allotment_check((int)$b['hotel_id'], $b['check_in'], $b['check_out'], $selfId, $mine, $pdo);
+        $dm = fn($d) => date('d.m', strtotime($d));
+        if ($ac['stop']) $warn('warn', 'stop_sale', 'Otel bu gecelerde satışı kapattı (stop sale): ' . implode(', ', array_map($dm, array_slice($ac['stop'], 0, 6))) . (count($ac['stop']) > 6 ? '…' : '') . '. Otelden ayrıca onay alın.');
+        if ($ac['over']) {
+            $worst = array_reduce($ac['over'], fn($w, $x) => !$w || ($x[1] - $x[2]) > ($w[1] - $w[2]) ? $x : $w);
+            $msg = 'Kontenjan aşılıyor: ' . count($ac['over']) . ' gece (en çok ' . $dm($worst[0]) . " gecesi {$worst[1]} oda / kontenjan {$worst[2]}).";
+            if (in_array($b['status'] ?? '', ACTIVE_STATUSES, true)) $warn('warn', 'kontenjan', $msg . ' Otelden ek oda isteyin.');
+            else $warn('info', 'kontenjan', 'Opsiyona alınırsa ' . mb_strtolower(mb_substr($msg, 0, 1)) . mb_substr($msg, 1));
         }
     }
     if (!empty($b['rooms_reserved']) && (int)$b['rooms_reserved'] < $rooms) {

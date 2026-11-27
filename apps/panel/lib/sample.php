@@ -63,8 +63,9 @@ function lx_load_sample(PDO $pdo): void {
         'contact' => 'Harun Bey', 'note' => 'Yaz dönemi fiyatı'] + $meta);
 
     foreach (['grand_marcello' => 50, 'marcello' => 25, 'royal' => 75, 'ilkbal' => 75, 'buyuk_sahinler' => 50, 'grand_madrid' => 25] as $k => $n) {
-        $ins('hotel_allotments', ['hotel_id' => $H[$k], 'date_from' => $d(-10), 'date_to' => $d(200), 'rooms' => $n, 'note' => 'Otelin bize verdiği oda'] + $meta);
+        $ins('hotel_allotments', ['hotel_id' => $H[$k], 'date_from' => $d(-10), 'date_to' => $d(200), 'rooms' => $n, 'release_days' => 7, 'note' => 'Otelin bize verdiği oda; satılmayan oda 7 gün önce otele döner'] + $meta);
     }
+    $ins('hotel_allotments', ['hotel_id' => $H['royal'], 'date_from' => $d(40), 'date_to' => $d(43), 'rooms' => 0, 'stop_sale' => 1, 'note' => 'Otel fuar nedeniyle satışı kapattı'] + $meta);
 
     $agencies = [
         'soca' => ['Soca Tour', 'Romanya', 'Soco', 'Lazar'],
@@ -113,8 +114,9 @@ function lx_load_sample(PDO $pdo): void {
         foreach ($rooms as [$type, $qty, $buy, $sell]) $ins('booking_rooms', ['booking_id' => $bid, 'room_type' => $type, 'qty' => $qty, 'buy_price' => $buy, 'sell_price' => $sell]);
         foreach ($free as [$dir, $type, $qty]) $ins('booking_free', ['booking_id' => $bid, 'direction' => $dir, 'room_type' => $type, 'qty' => $qty]);
         if ($code === 'LUX6304') {
-            $ins('booking_services', ['booking_id' => $bid, 'kind' => 'Transfer', 'description' => 'Havalimanı gidiş-dönüş', 'buy' => 250, 'sell' => 350, 'currency' => 'EUR']);
-            $ins('booking_services', ['booking_id' => $bid, 'kind' => 'Rehber', 'description' => 'Şehir turu', 'buy' => 80, 'sell' => 100, 'currency' => 'EUR']);
+            $ins('booking_services', ['booking_id' => $bid, 'kind' => 'Transfer', 'description' => 'Havalimanı gidiş-dönüş', 'buy' => 250, 'sell' => 350, 'currency' => 'EUR',
+                'service_date' => $row['check_in'], 'service_time' => '14:30', 'pickup' => 'İstanbul Havalimanı', 'dropoff' => 'Otel', 'vehicle' => '46 kişilik otobüs', 'driver' => 'Mehmet Bey 0532 000 00 00']);
+            $ins('booking_services', ['booking_id' => $bid, 'kind' => 'Rehber', 'description' => 'Şehir turu', 'buy' => 80, 'sell' => 100, 'currency' => 'EUR', 'guide' => 'Ayşe Hanım']);
         }
         $ins('audit_log', ['at' => $t, 'user_name' => 'Eğitim', 'entity' => 'grup', 'entity_id' => $bid, 'action' => 'ekle', 'summary' => "Örnek grup eklendi: $code"]);
     }

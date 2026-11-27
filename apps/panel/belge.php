@@ -17,8 +17,13 @@ lx_session_start();
 $user = current_user();
 if (!$user) { header('Location: index.php'); exit; }
 
-$tip = ($_GET['tip'] ?? '') === 'voucher' ? 'voucher' : 'talep';
+$tip = in_array($_GET['tip'] ?? '', ['voucher', 'teklif'], true) ? $_GET['tip'] : 'talep';
 $id = (int)($_GET['id'] ?? 0);
+// Acente portalı kullanıcısı yalnız kendi grubunun voucher ve teklifini görür; otel fişi (alış fiyatlı) kapalı
+if (($user['role'] ?? '') === 'acente') {
+    $own = q_val('SELECT agency_id FROM bookings WHERE id = ? AND deleted = 0', [$id], db_main());
+    if ($tip === 'talep' || !$own || (int)$own !== (int)($user['agency_id'] ?? -1) || !empty($_SESSION['egitim'])) { http_response_code(403); echo '<p style="font-family:sans-serif">Bu belge için yetkiniz yok.</p>'; exit; }
+}
 try {
     extract(belge_data($id, (string)($_GET['durum'] ?? '')));
 } catch (Throwable $e) {
@@ -26,7 +31,7 @@ try {
     echo '<p style="font-family:sans-serif">Grup bulunamadı.</p>';
     exit;
 }
-$title = ($tip === 'voucher' ? 'Voucher ' : 'Otel rezervasyon fişi ') . $code;
+$title = ($tip === 'voucher' ? 'Voucher ' : ($tip === 'teklif' ? 'Offer ' : 'Otel rezervasyon fişi ')) . $code;
 ?><!doctype html>
 <html lang="tr">
 <head>
@@ -95,13 +100,62 @@ $title = ($tip === 'voucher' ? 'Voucher ' : 'Otel rezervasyon fişi ') . $code;
   <button onclick="window.close()">Kapat</button>
   <button class="main" onclick="window.print()">Yazdır / PDF</button>
 </div>
-<?php if (!$guests): ?><div class="warn">Misafir listesi boş. Grubun "Misafirler ve belgeler" bölümünden isimleri ekleyebilirsiniz.</div><?php endif; ?>
+<?php if (!$guests && $tip !== 'teklif'): ?><div class="warn">Misafir listesi boş. Grubun "Misafirler ve belgeler" bölümünden isimleri ekleyebilirsiniz.</div><?php endif; ?>
 <?php if ($tip === 'voucher' && !$confirmed && !$cancelled): ?><div class="warn">Grup henüz konfirme değil; voucher "TASLAK" damgasıyla çıkar.</div><?php endif; ?>
 
 <div class="sheet">
 <?php if ($cancelled): ?><div class="stamp">İPTAL / CANCELLED</div><?php elseif ($tip === 'voucher' && !$confirmed): ?><div class="stamp">TASLAK / DRAFT</div><?php endif; ?>
 
-<?php if ($tip === 'voucher'): ?>
+<?php if ($tip === 'teklif'):
+    $pp = $b['sell_mode'] === 'pp';
+    $rawSell = []; foreach ($b['rooms'] as $r) $rawSell[$r['room_type']] = $r['sell_price'];
+    $freeOut = array_values(array_filter($b['free'], fn($f) => $f['direction'] === 'out'));
+    $srvSell = array_values(array_filter($b['services'], fn($s) => (float)($s['sell'] ?? 0) > 0));
+    $totals = [$calc['sell_cur'] => $calc['sell_net']];
+    foreach ($srvSell as $s) $totals[$s['currency']] = ($totals[$s['currency']] ?? 0) + (float)$s['sell'];
+    $agFull = $b['agency_id'] ? q_one('SELECT name, country, contact FROM agencies WHERE id = ?', [$b['agency_id']]) : null;
+?>
+  <table><tr>
+    <td style="width:190px"><?php if ($co['logo']): ?><img class="logo" src="<?= h($co['logo']) ?>" alt="LUX"><?php else: ?><b style="font-size:22px;color:#3a5f78">LUX LOCATIONS</b><?php endif; ?></td>
+    <td style="text-align:center;font-size:20px;padding-top:34px;font-family:Arial,Helvetica,sans-serif"><b>PRICE OFFER</b><div style="font-size:13px;color:#555">Fiyat teklifi</div></td>
+    <td style="width:190px;text-align:right;font-size:12px;line-height:1.5;padding-top:20px">Offer No: <b><?= h($code) ?></b><br>Date: <?= date('d/m/Y', $now) ?><br>Prepared by: <?= h($user['name']) ?></td>
+  </tr></table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th class="l" style="width:50%">To / Acente</th><th class="l">Hotel / Otel</th></tr>
+    <tr><td class="l"><b><?= h($agency['name'] ?? '') ?></b><?= !empty($agency['country']) ? ' · ' . h($agency['country']) : '' ?></td>
+      <td class="l"><b><?= h(up($hotel['name'])) ?></b> <?= $hotel['stars'] ? str_repeat('★', (int)$hotel['stars']) : '' ?><br><span style="font-size:11px"><?= h($hotel['region'] ?: 'İstanbul') ?><?= $hotel['address'] ? ' · ' . h($hotel['address']) : '' ?></span></td></tr>
+  </table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th>Check-in</th><th>Check-out</th><th>Nights</th><th>Board</th><th>Rooms</th><th>Currency</th></tr>
+    <tr><td><?= d($b['check_in']) ?></td><td><?= d($b['check_out']) ?></td><td><?= $nights ?></td><td><?= h($boardName) ?></td><td><?= $totalRooms ?></td><td><?= h($calc['sell_cur']) ?></td></tr>
+  </table>
+  <div class="gap"></div>
+  <table class="g">
+    <tr><th class="l">Room type</th><th>Rooms</th><th><?= $pp ? 'Price per person / night' : 'Price per room / night' ?></th><th>Nights</th><th class="r">Total</th></tr>
+    <?php foreach ($lines as $l): ?>
+      <tr><td class="l"><?= h($ROOM[$l['room_type']] ?? $l['room_type']) ?> (<?= h(up($cat)) ?>)</td><td><?= (int)$l['qty'] ?></td>
+        <td><?= m($pp ? $rawSell[$l['room_type']] ?? null : $l['sell_night']) ?> <?= h($calc['sell_cur']) ?></td><td><?= $nights ?></td><td class="r"><?= m($l['sell_total']) ?> <?= h($calc['sell_cur']) ?></td></tr>
+    <?php endforeach; ?>
+    <?php if ($freeOut): ?><tr><td class="l" colspan="4">Free rooms / Ücretsiz oda: <?= h(implode(', ', array_map(fn($f) => (int)$f['qty'] . ' ' . $f['room_type'], $freeOut))) ?></td><td class="r">− <?= m($calc['free_out']) ?> <?= h($calc['sell_cur']) ?></td></tr><?php endif; ?>
+    <?php foreach ($srvSell as $s): ?><tr><td class="l" colspan="4"><?= h($s['kind']) ?><?= $s['description'] ? ' · ' . h($s['description']) : '' ?></td><td class="r"><?= m($s['sell']) ?> <?= h($s['currency']) ?></td></tr><?php endforeach; ?>
+    <?php foreach ($totals as $cur => $v): ?><tr><th class="l" colspan="4" style="text-align:right">TOTAL / TOPLAM</th><th class="r"><?= m(round($v, 2)) ?> <?= h($cur) ?></th></tr><?php endforeach; ?>
+  </table>
+  <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;margin:12px 0 0;line-height:1.6">
+    <?php if ($pp): ?>Per person prices: SGL and DBL room = price x 2, TRPL = x 3, QUAD = x 4.<br><?php endif; ?>
+    <?php if ($b['option_until'] && !$confirmed): ?>Option valid until / Opsiyon: <b><?= d($b['option_until']) ?></b><br><?php endif; ?>
+    Prices are subject to availability at the time of confirmation. City tax, if any, is paid at the hotel.<br>
+    <?php if ($extra['voucher_note']): ?><span style="white-space:pre-wrap">Note: <?= h($extra['voucher_note']) ?></span><br><?php endif; ?>
+  </div>
+  <div class="addr" style="margin-top:40px">
+    <u><?= h($co['name']) ?></u>
+    <?= h($co['address']) ?><br>
+    Tel: <?= h($co['phone']) ?><br>
+    <?= h($co['email']) ?> · <?= h($co['web']) ?>
+  </div>
+
+<?php elseif ($tip === 'voucher'): ?>
   <table><tr>
     <td style="width:190px"><?php if ($co['logo']): ?><img class="logo" src="<?= h($co['logo']) ?>" alt="LUX"><?php else: ?><b style="font-size:22px;color:#3a5f78">LUX LOCATIONS</b><?php endif; ?></td>
     <td style="text-align:center;font-size:20px;padding-top:40px">VOUCHER FORMU</td>

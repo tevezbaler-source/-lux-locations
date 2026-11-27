@@ -69,9 +69,12 @@ function hotel_save(array $in): array {
         'email' => implode(', ', mail_addr_list((string)($in['email'] ?? ''), 'Otel e-postası')) ?: null,
         'active' => isset($in['active']) ? (int)!!$in['active'] : 1,
     ];
+    if ($data['stars'] !== null && ($data['stars'] < 1 || $data['stars'] > 5)) throw new ApiError('Yıldız 1 ile 5 arasında olmalı (yıldızsız otelde boş bırakın).');
     $id = clean_int($in['id'] ?? null);
     if ($id) {
         $old = hotel_get($id);
+        $dup = q_one('SELECT id, name FROM hotels WHERE LOWER(name) = LOWER(?) AND id <> ?', [$name, $id]);
+        if ($dup) throw new ApiError("\"{$dup['name']}\" adında başka bir otel zaten var. Aynı otelse grupları o otele taşıyın.");
         update_row('hotels', $id, $data, clean_int($in['version'] ?? null));
         audit('otel', $id, 'guncelle', "Otel güncellendi: $name", $old, $data);
     } else {
@@ -106,7 +109,11 @@ function rate_save(array $in): array {
         'invoiced' => isset($in['invoiced']) ? (int)!!$in['invoiced'] : 1,
         'free_every' => clean_int($in['free_every'] ?? null), 'free_type' => clean_str($in['free_type'] ?? null, 5),
         'contact' => clean_str($in['contact'] ?? null, 120), 'note' => clean_str($in['note'] ?? null, 2000),
+        'min_nights' => clean_int($in['min_nights'] ?? null) ?: null, 'chd_policy' => clean_str($in['chd_policy'] ?? null, 255),
+        'eb_until' => clean_date($in['eb_until'] ?? ''), 'eb_pct' => clean_dec($in['eb_pct'] ?? null),
     ];
+    if ($data['eb_pct'] !== null && ($data['eb_pct'] <= 0 || $data['eb_pct'] >= 100)) throw new ApiError('Erken rezervasyon indirimi 0 ile 100 arasında olmalı.');
+    if (($data['eb_pct'] === null) !== ($data['eb_until'] === null)) throw new ApiError('Erken rezervasyon için hem son tarihi hem indirim yüzdesini girin.');
     if ($data['dbl'] === null && $data['sngl'] === null) throw new ApiError('En az DBL fiyatı girin.');
     $id = clean_int($in['id'] ?? null);
     $label = "$from / $to " . ($data['dbl'] ?? '') . " $cur";
@@ -135,17 +142,21 @@ function allotment_save(array $in): array {
     hotel_get((int)$hotelId);
     $from = clean_date($in['date_from'] ?? ''); $to = clean_date($in['date_to'] ?? '');
     if (!$from || !$to || $to < $from) throw new ApiError('Kontenjan tarihleri hatalı.');
+    $stop = !empty($in['stop_sale']) ? 1 : 0;
     $rooms = clean_int($in['rooms'] ?? null);
+    if ($stop && $rooms === null) $rooms = 0;
     if ($rooms === null || $rooms < 0) throw new ApiError('Oda sayısı girin.');
-    $data = ['hotel_id' => $hotelId, 'date_from' => $from, 'date_to' => $to, 'rooms' => $rooms, 'note' => clean_str($in['note'] ?? null, 2000)];
+    $rel = clean_int($in['release_days'] ?? null);
+    if ($rel !== null && ($rel < 0 || $rel > 120)) throw new ApiError('Release günü 0-120 arasında olmalı.');
+    $data = ['hotel_id' => $hotelId, 'date_from' => $from, 'date_to' => $to, 'rooms' => $rooms, 'note' => clean_str($in['note'] ?? null, 2000), 'release_days' => $rel, 'stop_sale' => $stop];
     $id = clean_int($in['id'] ?? null);
     if ($id) {
         $old = q_one('SELECT * FROM hotel_allotments WHERE id = ?', [$id]);
         update_row('hotel_allotments', $id, $data, clean_int($in['version'] ?? null));
-        audit('kontenjan', $id, 'guncelle', "Kontenjan güncellendi: $from / $to $rooms oda", $old, $data);
+        audit('kontenjan', $id, 'guncelle', $stop ? "Stop sale güncellendi: $from / $to" : "Kontenjan güncellendi: $from / $to $rooms oda", $old, $data);
     } else {
         $id = insert_row('hotel_allotments', $data + stamp_new());
-        audit('kontenjan', $id, 'ekle', "Kontenjan eklendi: $from / $to $rooms oda", null, $data);
+        audit('kontenjan', $id, 'ekle', $stop ? "Stop sale eklendi: $from / $to" : "Kontenjan eklendi: $from / $to $rooms oda", null, $data);
     }
     return q_one('SELECT * FROM hotel_allotments WHERE id = ?', [$id]);
 }
@@ -169,6 +180,7 @@ function agency_save(array $in): array {
         'owner' => clean_str($in['owner'] ?? null, 120), 'contact' => clean_str($in['contact'] ?? null, 4000),
         'payment_terms' => clean_str($in['payment_terms'] ?? null, 4000), 'notes' => clean_str($in['notes'] ?? null, 4000),
         'invoice_info' => clean_str($in['invoice_info'] ?? null, 4000),
+        'markup_pct' => clean_dec($in['markup_pct'] ?? null),
         'active' => isset($in['active']) ? (int)!!$in['active'] : 1,
     ];
     $id = clean_int($in['id'] ?? null);
@@ -301,7 +313,7 @@ function booking_get(int $id): array {
     if (!$b) throw new ApiError('Grup bulunamadı.', 404);
     $b['rooms'] = q_all('SELECT room_type, qty, buy_price, sell_price FROM booking_rooms WHERE booking_id = ? ORDER BY id', [$id]);
     $b['free'] = q_all('SELECT direction, room_type, qty FROM booking_free WHERE booking_id = ? ORDER BY id', [$id]);
-    $b['services'] = q_all('SELECT kind, description, buy, sell, currency FROM booking_services WHERE booking_id = ? ORDER BY id', [$id]);
+    $b['services'] = q_all('SELECT kind, description, buy, sell, currency, ' . SERVICE_PLAN_COLS . ' FROM booking_services WHERE booking_id = ? ORDER BY id', [$id]);
     return $b;
 }
 
@@ -393,13 +405,16 @@ function booking_input(array $in): array {
         $qty = clean_int($r['qty'] ?? null);
         if (!$qty) continue;
         if (!in_array($r['room_type'] ?? '', ROOM_TYPES, true)) throw new ApiError('Oda tipi hatalı.');
-        $b['rooms'][] = ['room_type' => $r['room_type'], 'qty' => $qty, 'buy_price' => clean_dec($r['buy_price'] ?? null), 'sell_price' => clean_dec($r['sell_price'] ?? null)];
+        $bp = clean_dec($r['buy_price'] ?? null); $sp = clean_dec($r['sell_price'] ?? null);
+        if ($qty < 0 || ($bp !== null && $bp < 0) || ($sp !== null && $sp < 0)) throw new ApiError('Oda adedi ve fiyatlar eksi olamaz.');
+        $b['rooms'][] = ['room_type' => $r['room_type'], 'qty' => $qty, 'buy_price' => $bp, 'sell_price' => $sp];
     }
     $b['free'] = [];
     foreach (($in['free'] ?? []) as $f) {
         $qty = clean_int($f['qty'] ?? null);
         if (!$qty) continue;
         if (!in_array($f['room_type'] ?? '', ROOM_TYPES, true)) throw new ApiError('Free oda tipi hatalı.');
+        if ($qty < 0) throw new ApiError('Free oda adedi eksi olamaz.');
         $b['free'][] = ['direction' => ($f['direction'] ?? '') === 'out' ? 'out' : 'in', 'room_type' => $f['room_type'], 'qty' => $qty];
     }
     $b['services'] = [];
@@ -408,9 +423,21 @@ function booking_input(array $in): array {
         if (!$kind) continue;
         $cur = $s['currency'] ?? 'EUR';
         if (!in_array($cur, CURRENCIES, true)) throw new ApiError('Ek hizmet dövizi hatalı.');
-        $b['services'][] = ['kind' => $kind, 'description' => clean_str($s['description'] ?? null), 'buy' => clean_dec($s['buy'] ?? null), 'sell' => clean_dec($s['sell'] ?? null), 'currency' => $cur];
+        if ((num($s['buy'] ?? null) ?? 0) < 0 || (num($s['sell'] ?? null) ?? 0) < 0) throw new ApiError('Ek hizmet fiyatı eksi olamaz.');
+        $b['services'][] = ['kind' => $kind, 'description' => clean_str($s['description'] ?? null), 'buy' => clean_dec($s['buy'] ?? null), 'sell' => clean_dec($s['sell'] ?? null), 'currency' => $cur] + service_plan_input($s);
     }
     return $b;
+}
+
+/** Transfer/tur planı alanları (fiyattan bağımsız; konfirme grupta da değişebilir). */
+const SERVICE_PLAN_COLS = 'service_date, service_time, pickup, dropoff, pax, vehicle, driver, guide, plan_note';
+function service_plan_input(array $s): array {
+    $t = trim((string)($s['service_time'] ?? ''));
+    if ($t !== '' && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t)) throw new ApiError("Saat SS:DD biçiminde olmalı: $t");
+    $pax = clean_int($s['pax'] ?? null);
+    return ['service_date' => clean_date($s['service_date'] ?? ''), 'service_time' => $t ?: null, 'pickup' => clean_str($s['pickup'] ?? null, 160), 'dropoff' => clean_str($s['dropoff'] ?? null, 160),
+        'pax' => $pax !== null && $pax > 0 ? $pax : null, 'vehicle' => clean_str($s['vehicle'] ?? null, 80), 'driver' => clean_str($s['driver'] ?? null, 120), 'guide' => clean_str($s['guide'] ?? null, 120),
+        'plan_note' => clean_str($s['plan_note'] ?? null, 255)];
 }
 
 function price_signature(array $b): string {
@@ -433,12 +460,13 @@ function booking_save(array $in): array {
     $u = current_user();
     $b = booking_input($in);
     if (!$b['hotel_id']) throw new ApiError('Otel seçin.');
-    hotel_get($b['hotel_id']);
+    $hotelRow = hotel_get($b['hotel_id']);
     if (!$b['agency_id']) throw new ApiError('Acente seçin.');
     if (!q_one('SELECT id FROM agencies WHERE id = ?', [$b['agency_id']])) throw new ApiError('Acente bulunamadı.');
     $id = clean_int($in['id'] ?? null);
     $old = $id ? booking_get($id) : null;
     if ($old && (int)$old['deleted']) throw new ApiError('Bu grup silinmiş.', 410);
+    if (!$old && !(int)$hotelRow['active']) throw new ApiError('Bu otel pasif. Önce otel bilgilerinden aktif yapın.');
 
     if ($b['code']) {
         $dup = q_one('SELECT id FROM bookings WHERE code = ? AND deleted = 0 AND id <> ?', [$b['code'], $id ?: 0]);
@@ -460,7 +488,7 @@ function booking_save(array $in): array {
         if ($lr) { $b['eur_try'] = $b['eur_try'] ?: (float)$lr['eur_try']; $b['usd_try'] = $b['usd_try'] ?: (float)$lr['usd_try']; }
     }
 
-    $calc = calc_booking($b);
+    $calc = calc_booking($b + ['id' => $id]);
     $codes = array_column(array_filter($calc['warnings'], fn($w) => $w['level'] === 'error'), 'code');
     $hard = array_intersect($codes, ['tarih', 'doviz', 'oda']);
     if ($hard) throw new ApiError(implode(' ', array_column(array_filter($calc['warnings'], fn($w) => in_array($w['code'], $hard, true)), 'msg')), 422, ['calc' => $calc]);
@@ -511,6 +539,7 @@ function booking_save(array $in): array {
 function booking_cancel(int $id, string $reason, ?int $version): array {
     need('booking');
     $old = booking_get($id);
+    if ((int)$old['deleted']) throw new ApiError('Bu grup silinmiş.', 410);
     if ($old['status'] === 'iptal') throw new ApiError('Grup zaten iptal.');
     $reason = trim($reason);
     if ($reason === '') throw new ApiError('İptal nedenini yazın (ön ödeme ne olacak?).');
@@ -524,7 +553,9 @@ function booking_cancel(int $id, string $reason, ?int $version): array {
 function booking_transfer(int $id, int $agencyId, ?string $in, ?string $out, ?int $version): array {
     need('booking');
     $old = booking_get($id);
+    if ((int)$old['deleted']) throw new ApiError('Bu grup silinmiş.', 410);
     if ($old['status'] === 'iptal') throw new ApiError('İptal edilmiş grup devredilemez.');
+    if (in_array($old['status'], LOCKED_STATUSES, true) && !can('unlock')) throw new ApiError('Konfirme grubu yalnız Yönetici devredebilir.', 403);
     $ag = q_one('SELECT id, name FROM agencies WHERE id = ?', [$agencyId]);
     if (!$ag) throw new ApiError('Acente bulunamadı.');
     if ($agencyId === (int)$old['agency_id']) throw new ApiError('Grup zaten bu acentede.');
@@ -584,6 +615,7 @@ function booking_move(int $id, int $hotelId, ?int $version): array {
 function booking_delete(int $id): void {
     need('booking');
     $old = booking_get($id);
+    if ((int)$old['deleted']) throw new ApiError('Bu grup zaten silinmiş.', 410);
     if (in_array($old['status'], LOCKED_STATUSES, true) && !can('unlock')) throw new ApiError('Konfirme grubu yalnız Yönetici silebilir; iptal edin.', 403);
     q('UPDATE bookings SET deleted = 1, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ?', [current_user()['id'], now(), $id]);
     audit('grup', $id, 'sil', 'Grup silindi (kayıt saklanıyor)', booking_snapshot($old), null);
@@ -591,7 +623,8 @@ function booking_delete(int $id): void {
 
 /* ---------------- Otel ızgarası ve otel detayı ---------------- */
 
-function date_add_days(string $d, int $n): string { return date('Y-m-d', strtotime("$d +$n day")); }
+// Not: "+-3 day" PHP'de +3 gün sayılır; işaret ayrı yazılmalı
+function date_add_days(string $d, int $n): string { return date('Y-m-d', strtotime($d . ' ' . sprintf('%+d', $n) . ' day')); }
 
 function booking_room_count(array $b): int {
     $n = array_sum(array_map(fn($r) => (int)$r['qty'], $b['rooms']));
@@ -600,7 +633,7 @@ function booking_room_count(array $b): int {
 
 /** [from, to) aralığında her gece için ayrılan oda ve kontenjan. */
 function nights_usage(int $hotelId, string $from, string $to, array $bookings): array {
-    $allot = q_all('SELECT date_from, date_to, rooms FROM hotel_allotments WHERE hotel_id = ? AND date_from < ? AND date_to >= ?', [$hotelId, $to, $from]);
+    $allot = q_all('SELECT date_from, date_to, rooms, stop_sale, release_days FROM hotel_allotments WHERE hotel_id = ? AND date_from < ? AND date_to >= ?', [$hotelId, $to, $from]);
     $out = [];
     for ($d = $from, $i = 0; $d < $to && $i < 400; $d = date_add_days($d, 1), $i++) {
         $res = 0;
@@ -608,9 +641,14 @@ function nights_usage(int $hotelId, string $from, string $to, array $bookings): 
             if (!in_array($b['status'], ACTIVE_STATUSES, true)) continue;
             if ($b['check_in'] <= $d && $b['check_out'] > $d) $res += booking_room_count($b);
         }
-        $al = null;
-        foreach ($allot as $a) if ($a['date_from'] <= $d && $a['date_to'] >= $d) $al = ($al ?? 0) + (int)$a['rooms'];
-        $out[] = ['date' => $d, 'reserved' => $res, 'allotment' => $al];
+        $al = null; $stop = false; $rel = null;
+        foreach ($allot as $a) {
+            if ($a['date_from'] > $d || $a['date_to'] < $d) continue;
+            if ((int)$a['stop_sale']) { $stop = true; continue; }
+            $al = ($al ?? 0) + (int)$a['rooms'];
+            if ($a['release_days'] !== null) $rel = date_add_days($d, -(int)$a['release_days']);
+        }
+        $out[] = ['date' => $d, 'reserved' => $res, 'allotment' => $al, 'stop' => $stop, 'release' => $rel];
     }
     return $out;
 }
@@ -679,6 +717,55 @@ function hotel_detail(int $id, string $from, string $to): array {
     $h['nights'] = nights_usage($id, $from, $to, $h['bookings']);
     $h['history'] = q_all("SELECT at, user_name, action, summary FROM audit_log WHERE (entity = 'otel' AND entity_id = ?) ORDER BY id DESC LIMIT 30", [$id]);
     return $h;
+}
+
+/* ---------------- Kontenjan özeti (tüm oteller) ---------------- */
+
+/** Kontenjanı olan otellerin [from, to) gecelerindeki doluluğu, boş odalar, stop sale ve yaklaşan release'ler. */
+function kontenjan_ozet(string $from, string $to, int $releaseDays = 7): array {
+    $ids = q_all('SELECT DISTINCT a.hotel_id FROM hotel_allotments a JOIN hotels h ON h.id = a.hotel_id WHERE h.active = 1 AND a.date_from < ? AND a.date_to >= ?', [$to, $from]);
+    $today = date('Y-m-d'); $limit = date_add_days($today, $releaseDays);
+    $hotels = []; $releases = [];
+    foreach ($ids as $r) {
+        $hid = (int)$r['hotel_id'];
+        $h = q_one('SELECT id, name, region, stars FROM hotels WHERE id = ?', [$hid]);
+        $books = q_all('SELECT id FROM bookings WHERE hotel_id = ? AND deleted = 0 AND check_in < ? AND check_out > ?', [$hid, $to, $from]);
+        $bk = array_map(fn($x) => booking_get((int)$x['id']), $books);
+        $nights = nights_usage($hid, $from, $to, $bk);
+        $s = ['alloc' => 0, 'sold' => 0, 'free' => 0, 'over' => 0, 'stop' => 0, 'nights' => 0];
+        foreach ($nights as $n) {
+            if ($n['stop']) $s['stop']++;
+            if ($n['allotment'] === null) continue;
+            $s['nights']++;
+            $s['alloc'] += $n['allotment']; $s['sold'] += min($n['reserved'], $n['allotment']);
+            $free = $n['allotment'] - $n['reserved'];
+            if ($free < 0) $s['over']++; else $s['free'] += $free;
+            if ($free > 0 && $n['release'] !== null && $n['release'] <= $limit && $n['date'] >= $today) {
+                // Otel başına özet: release günü geçmiş (oda otele dönmüş olabilir) ve yakında gelecek boş oda-geceler
+                $r = &$releases[$hid];
+                $r ??= ['hotel_id' => $hid, 'hotel' => $h['name'], 'late' => 0, 'late_from' => null, 'late_to' => null, 'soon' => 0, 'soon_first' => null, 'soon_from' => null, 'soon_to' => null];
+                if ($n['release'] < $today) { $r['late'] += $free; $r['late_from'] ??= $n['date']; $r['late_to'] = $n['date']; }
+                else { $r['soon'] += $free; $r['soon_first'] = min($r['soon_first'] ?? $n['release'], $n['release']); $r['soon_from'] ??= $n['date']; $r['soon_to'] = $n['date']; }
+                unset($r);
+            }
+        }
+        $s['pct'] = $s['alloc'] ? round(100 * $s['sold'] / $s['alloc']) : null;
+        $hotels[] = $h + ['sum' => $s, 'nights' => array_map(fn($n) => [$n['date'], $n['reserved'], $n['allotment'], $n['stop'] ? 1 : 0], $nights)];
+    }
+    usort($hotels, fn($a, $b) => strcmp(norm_name($a['name']), norm_name($b['name'])));
+    $releases = array_values($releases);
+    usort($releases, fn($a, $b) => [$a['soon_first'] ?? '9', $a['hotel']] <=> [$b['soon_first'] ?? '9', $b['hotel']]);
+    return ['hotels' => $hotels, 'releases' => $releases, 'from' => $from, 'to' => $to];
+}
+
+/** Izgara için kısa uyarı: önümüzdeki 7 günde release'i gelen boş kontenjanı olan oteller. */
+function release_yaklasan(): array {
+    $today = date('Y-m-d');
+    if (!q_val('SELECT COUNT(*) FROM hotel_allotments WHERE release_days IS NOT NULL AND stop_sale = 0 AND date_to >= ?', [$today])) return [];
+    $o = kontenjan_ozet($today, date_add_days($today, 45), 3);
+    $out = [];
+    foreach ($o['releases'] as $r) if ($r['soon']) $out[] = ['hotel_id' => $r['hotel_id'], 'hotel' => $r['hotel'], 'rooms' => $r['soon'], 'first' => $r['soon_first']];
+    return $out;
 }
 
 /* ---------------- Not defteri ---------------- */
