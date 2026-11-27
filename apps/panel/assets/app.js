@@ -515,7 +515,7 @@
     const v = h || { name: '', stars: 4, region: 'Laleli', address: '', email: '', contacts: '', notes: '', active: 1 };
     const r = await modal(h ? 'Otel bilgileri' : 'Yeni otel', `<div class="grid-form">
       <label class="f wide">Otel adı<input name="name" value="${esc(v.name)}" required></label>
-      <label class="f">Yıldız<select name="stars">${[1, 2, 3, 4, 5].map((n) => `<option ${+v.stars === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="f">Yıldız<select name="stars"><option value="" ${v.stars ? '' : 'selected'}>— Yok / özel sınıf</option>${[1, 2, 3, 4, 5].map((n) => `<option ${+v.stars === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="f">Bölge<input name="region" value="${esc(v.region || '')}" list="regions"></label>
       <label class="f wide">Adres<input name="address" value="${esc(v.address || '')}"></label>
       <label class="f wide">Rezervasyon e-postası (fişler buraya gider; birden fazlaysa virgülle)<input name="email" type="text" inputmode="email" value="${esc(v.email || '')}" placeholder="ör. reservation@otel.com"></label>
