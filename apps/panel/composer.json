@@ -1,0 +1,15 @@
+{
+    "name": "lux-locations/otel-paneli",
+    "description": "Otel paneli: sesli asistan için Claude API kütüphanesi",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "anthropic-ai/sdk": "^1.12",
+        "guzzlehttp/guzzle": "^7.9 || ^8.0"
+    },
+    "config": {
+        "platform": { "php": "8.2.0" },
+        "allow-plugins": { "php-http/discovery": false },
+        "optimize-autoloader": true
+    }
+}
