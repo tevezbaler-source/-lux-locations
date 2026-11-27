@@ -224,7 +224,7 @@
   }
 
   const NAV = [
-    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['notlar', 'Notlar', null],
+    ['', 'Oteller', null], ['talepler', 'Talepler', 'talep'], ['acenteler', 'Acenteler', null], ['kurlar', 'Kurlar', null], ['raporlar', 'Raporlar', 'report'], ['odemeler', 'Otel ödemeleri', 'cari'], ['notlar', 'Notlar', null],
     ['otel-yonetimi', 'Otel listesi', 'hotel'], ['kullanicilar', 'Kullanıcılar', 'users'], ['kayit', 'İşlem kaydı', 'audit'], ['egitim', 'Eğitim', null],
   ];
 
@@ -236,7 +236,7 @@
   function shell() {
     document.body.classList.toggle('egitim', S.egitim);
     const cur = parseHash().parts[0] || '';
-    const navCur = cur === 'otel' || cur === 'grup' ? '' : cur === 'acente' ? 'acenteler' : cur;
+    const navCur = cur === 'otel' || cur === 'grup' ? '' : cur === 'acente' ? 'acenteler' : cur === 'odeme' ? 'odemeler' : cur;
     $app.innerHTML = `
       <header class="top">
         <a class="brand" href="#/">Lux Locations · Otel Paneli</a>
@@ -312,6 +312,8 @@
         case 'acente': return await viewAgency(main, +parts[1]);
         case 'kurlar': return await viewFx(main);
         case 'raporlar': return await viewReports(main, params);
+        case 'odemeler': return await viewPayments(main, null);
+        case 'odeme': return await viewPayments(main, +parts[1]);
         case 'notlar': return await viewNotes(main, params);
         case 'otel-yonetimi': return await viewHotelAdmin(main);
         case 'kullanicilar': return await viewUsers(main);
@@ -1149,6 +1151,131 @@
     qsa('.quick button', main).forEach((b) => b.onclick = () => set({ from: b.dataset.f, to: b.dataset.t }));
     const chg = () => set({ from: qs('#rF', main).value, to: qs('#rT', main).value, kapsam: qs('#rK', main).value });
     ['#rF', '#rT', '#rK'].forEach((sel) => qs(sel, main).onchange = chg);
+  }
+
+  /* ================= OTEL ÖDEME KONTROLÜ ================= */
+  // Fotoğrafı tarayıcıda küçültür (yükleme hızlı olsun, yazılar okunur kalsın)
+  function fileToB64(file) {
+    return new Promise((resolve, reject) => {
+      const rd = new FileReader();
+      rd.onerror = () => reject(new Error('Dosya okunamadı.'));
+      if (file.type === 'application/pdf') { rd.onload = () => resolve({ data: String(rd.result).split(',')[1], mime: 'application/pdf' }); rd.readAsDataURL(file); return; }
+      rd.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Fotoğraf açılamadı. JPG veya PNG yükleyin.'));
+        img.onload = () => {
+          const max = 2400, k = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve({ data: c.toDataURL('image/jpeg', 0.88).split(',')[1], mime: 'image/jpeg' });
+        };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(file);
+    });
+  }
+
+  async function viewPayments(main, id) {
+    const [hs, list] = await Promise.all([api('hotels'), api('ekstreler')]);
+    let cur = null, hotelId = '', saved = null;
+    if (id) { const d = await api('ekstre', { id }); saved = d.item; cur = d.check; hotelId = d.item.hotel_id || ''; }
+    const stBadge = (s) => s === 'odendi' ? '<span class="badge st-kapandi">Ödendi</span>' : '<span class="badge st-opsiyon">Kontrol edildi</span>';
+    main.innerHTML = `<div class="row"><h1>Otel ödemeleri</h1><span class="spacer"></span>${id ? '<a class="btn" href="#/odemeler">+ Yeni ekstre</a>' : ''}</div>
+      <div class="small muted" style="margin-bottom:10px">Otelin gönderdiği ödeme ekstresinin fotoğrafını ya da PDF'ini yükleyin. Panel satırları okur, voucher numarasıyla gruplarınızı bulur; tarih, oda adedi, fiyat, free ve toplamları karşılaştırır. Hepsi tutarsa "Ödenebilir" der.</div>
+      <div class="panel" id="ekForm">
+        <div class="grid2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:end">
+          <label class="f">Otel<select name="hotel_id"><option value="">— Ekstreden anlaşılsın —</option>${hs.hotels.map((h) => `<option value="${h.id}" ${String(h.id) === String(hotelId) ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select></label>
+          <label class="f">Ekstre (fotoğraf veya PDF)<input type="file" id="ekFile" accept="image/*,application/pdf"></label>
+          <div><button class="primary" id="ekRead">Ekstreyi oku ve kontrol et</button></div>
+        </div>
+        <div class="small muted" style="margin-top:6px">Fotoğraf okunmak için Claude'a gönderilir, panelde saklanmaz. Okuma 20-60 saniye sürebilir.</div>
+      </div>
+      <div id="ekOut"></div>
+      <h2>Kayıtlı ekstreler</h2>
+      <div class="tbl-wrap"><table><thead><tr><th>Tarih</th><th>Otel</th><th class="num">Ödenecek</th><th>Durum</th><th>Fark</th><th>Not</th></tr></thead><tbody>
+      ${list.items.map((r) => `<tr class="click" data-id="${r.id}"><td>${trDT(r.updated_at || r.created_at)}</td><td>${esc(r.hotel_name || '')}</td><td class="num">${money(r.due, r.currency)}</td><td>${stBadge(r.status)}${r.paid_at ? ' ' + trDate(r.paid_at) : ''}</td><td>${+r.errors ? `<span class="neg">${r.errors}</span>` : '✓'}</td><td class="small">${esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Henüz kayıtlı ekstre yok.</td></tr>'}
+      </tbody></table></div>`;
+    hotelCombo(qs('#ekForm', main));
+    qsa('tr.click', main).forEach((r) => r.onclick = () => go('#/odeme/' + r.dataset.id));
+    const hotelSel = qs('select[name="hotel_id"]', main);
+    const out = qs('#ekOut', main);
+
+    const num = (v) => { if (v === '' || v === null || v === undefined) return null; const s = String(v).trim().replace(/\s/g, ''); const t = /^-?[\d.]*,\d{1,2}$/.test(s) ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, ''); return isNaN(+t) ? null : +t; };
+    const readBack = () => {
+      const st = cur.statement;
+      qsa('.ek-g', out).forEach((gEl) => {
+        const g = st.groups[+gEl.dataset.i];
+        g.voucher = qs('[data-k="voucher"]', gEl).value.trim(); g.rez_no = qs('[data-k="rez_no"]', gEl).value.trim(); g.total = num(qs('[data-k="gtotal"]', gEl).value);
+        qsa('tr[data-l]', gEl).forEach((tr) => {
+          const l = g.lines[+tr.dataset.l]; const v = (k) => qs(`[data-k="${k}"]`, tr).value;
+          Object.assign(l, { check_in: v('check_in') || null, check_out: v('check_out') || null, nights: num(v('nights')), room_type: v('room_type'), qty: num(v('qty')) ?? 0, rate: num(v('rate')), total: num(v('total')), free: num(v('qty')) < 0 || /free/i.test(v('room_type')) });
+        });
+      });
+      ['grand_total', 'previous_balance', 'paid', 'amount_due'].forEach((k) => { st[k] = num(qs(`[data-t="${k}"]`, out).value); });
+      st.currency = qs('[data-t="currency"]', out).value;
+      return st;
+    };
+    const render = () => {
+      const st = cur.statement, C = st.currency || '';
+      const inp = (k, v, w = 80, type = 'text') => `<input data-k="${k}" type="${type}" value="${esc(v ?? '')}" style="width:${w}px">`;
+      out.innerHTML = `
+        <div class="panel" style="background:${cur.ok ? 'var(--ok-bg, #e6f6ec)' : 'var(--err-bg, #fdecec)'}">
+          <h2 style="margin:0">${cur.ok ? `✓ Ödenebilir: ${money(cur.due, C)}` : `✗ ${cur.errors} fark var, ödemeden önce bakın`}</h2>
+          <div class="small">${esc(st.hotel || '')} · ${st.groups.length} rezervasyon · ekstre toplamı ${money(cur.sum, C)} · paneldeki alış toplamı ${money(cur.panel_sum, C)}</div>
+          ${cur.notes.map(([k, m]) => `<div class="small ${k === 'err' ? 'neg' : 'muted'}">${k === 'err' ? '✗' : 'ℹ'} ${esc(m)}</div>`).join('')}
+        </div>
+        ${cur.groups.map((g) => { const sg = st.groups[g.i]; const b = g.booking; return `
+        <div class="panel ek-g" data-i="${g.i}" style="border-left:5px solid ${g.errors.length ? 'var(--err)' : 'var(--ok, #2e9e5b)'}">
+          <div class="row" style="gap:10px;flex-wrap:wrap">
+            <b>${g.errors.length ? '✗' : '✓'}</b>
+            <label class="small">Voucher ${inp('voucher', sg.voucher, 100)}</label><label class="small">Otel rez. ${inp('rez_no', sg.rez_no, 90)}</label>
+            ${b ? `<a href="#/grup/${b.id}">${esc(b.code || '#' + b.id)}</a> <span class="small muted">${esc(b.agency || '')} · ${trDate(b.check_in)} – ${trDate(b.check_out)}</span> ${statusBadge(b.status)}` : '<span class="neg small">Panelde bulunamadı</span>'}
+            <span class="spacer"></span><span class="small">Ekstre <b>${money(g.total, C)}</b>${g.panel_total !== null ? ` · Panel <b>${money(g.panel_total, b ? b.buy_cur : C)}</b>` : ''}</span>
+          </div>
+          ${g.errors.map((m) => `<div class="small neg">✗ ${esc(m)}</div>`).join('')}${g.info.map((m) => `<div class="small muted">ℹ ${esc(m)}</div>`).join('')}
+          <details ${g.errors.length || !b ? 'open' : ''}><summary class="small muted">Ekstre satırları (${sg.lines.length})</summary><div class="tbl-wrap"><table class="small"><thead><tr><th>Giriş</th><th>Çıkış</th><th>Gece</th><th>Oda</th><th>Adet</th><th>Fiyat</th><th>Tutar</th></tr></thead><tbody>
+          ${sg.lines.map((l, li) => `<tr data-l="${li}"><td>${inp('check_in', l.check_in, 130, 'date')}</td><td>${inp('check_out', l.check_out, 130, 'date')}</td><td>${inp('nights', l.nights, 50)}</td><td>${inp('room_type', (l.free && !/free/i.test(l.room_type) ? l.room_type + ' FREE' : l.room_type), 100)}</td><td>${inp('qty', l.qty, 50)}</td><td>${inp('rate', l.rate, 70)}</td><td>${inp('total', l.total, 90)}</td></tr>`).join('')}
+          </tbody></table></div>
+          <div class="small">Blok TOPLAM ${inp('gtotal', sg.total, 100)}</div></details>
+        </div>`; }).join('')}
+        ${cur.missing.length ? `<div class="panel small" style="background:var(--warn-bg)"><b>Bu otelde aynı dönemde olup ekstrede olmayan gruplar:</b> ${cur.missing.map((m) => `<a href="#/grup/${m.id}">${esc(m.code || '#' + m.id)}</a> (${trDate(m.check_in)}–${trDate(m.check_out)})`).join(', ')}</div>` : ''}
+        <div class="panel"><div class="row" style="gap:12px;flex-wrap:wrap">
+          <label class="small">Para birimi <select data-t="currency">${['USD', 'EUR', 'TRY'].map((c) => `<option ${c === C ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+          <label class="small">Genel toplam <input data-t="grand_total" value="${esc(st.grand_total ?? '')}" style="width:100px"></label>
+          <label class="small">Önceki bakiye <input data-t="previous_balance" value="${esc(st.previous_balance ?? '')}" style="width:90px"></label>
+          <label class="small">Ödenen <input data-t="paid" value="${esc(st.paid ?? '')}" style="width:90px"></label>
+          <label class="small">Ödenecek (ekstrede) <input data-t="amount_due" value="${esc(st.amount_due ?? '')}" style="width:100px"></label>
+          <button id="ekRe">Düzelttim, yeniden kontrol et</button>
+        </div>
+        <div class="small muted" style="margin-top:4px">Okumada yanlış rakam varsa kutulardan düzeltip yeniden kontrol edin.</div></div>
+        <div class="panel"><div class="row" style="gap:10px;flex-wrap:wrap">
+          <input id="ekNote" placeholder="Not (ör. havale tarihi, fark nedeni)" value="${esc(saved?.note || '')}" style="flex:1;min-width:220px">
+          <label class="small">Ödeme tarihi <input type="date" id="ekPaid" value="${saved?.paid_at || today()}"></label>
+          <button id="ekSave">Kaydet</button><button class="primary" id="ekPay">Ödendi olarak kaydet</button>
+        </div>${saved ? `<div class="small muted" style="margin-top:4px">Kayıtlı ekstre #${saved.id} · ${saved.status === 'odendi' ? 'ödendi ' + trDate(saved.paid_at) : 'kontrol edildi'}</div>` : ''}</div>`;
+      qs('#ekRe', out).onclick = async () => { try { cur = await api('ekstre_kontrol', {}, { statement: readBack(), hotel_id: hotelSel.value || null }); render(); toast('Yeniden kontrol edildi.', 'ok'); } catch (e) { toast(e.message, 'err'); } };
+      const save = async (status) => {
+        try {
+          const r = await api('ekstre_kaydet', {}, { id: saved?.id || null, statement: readBack(), hotel_id: hotelSel.value || null, status, note: qs('#ekNote', out).value, paid_at: qs('#ekPaid', out).value });
+          toast(status === 'odendi' ? 'Ödendi olarak kaydedildi.' : 'Kaydedildi.', 'ok'); go('#/odeme/' + r.id);
+        } catch (e) { toast(e.message, 'err'); }
+      };
+      qs('#ekSave', out).onclick = () => save('kontrol');
+      qs('#ekPay', out).onclick = () => save('odendi');
+    };
+    qs('#ekRead', main).onclick = async (ev) => {
+      const f = qs('#ekFile', main).files[0];
+      if (!f) { toast('Önce ekstrenin fotoğrafını veya PDF\'ini seçin.', 'err'); return; }
+      const btn = ev.currentTarget; btn.disabled = true; btn.textContent = 'Okunuyor…';
+      out.innerHTML = '<div class="panel muted">Ekstre okunuyor ve gruplarla karşılaştırılıyor…</div>';
+      try {
+        const file = await fileToB64(f);
+        cur = await api('ekstre_oku', {}, { data: file.data, mime: file.mime, hotel_id: hotelSel.value || null });
+        saved = null; render();
+      } catch (e) { out.innerHTML = ''; toast(e.message, 'err'); }
+      btn.disabled = false; btn.textContent = 'Ekstreyi oku ve kontrol et';
+    };
+    if (cur) render();
   }
 
   /* ================= ACENTELER ================= */

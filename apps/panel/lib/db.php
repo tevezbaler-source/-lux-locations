@@ -113,6 +113,8 @@ function lx_migrate(PDO $pdo, bool $withUsers): void {
     $tables['notes'] = "id $pk, text $txt NOT NULL, hotel_id INT NULL, agency_id INT NULL, booking_id INT NULL, due_date VARCHAR(10) NULL, done INT NOT NULL DEFAULT 0, done_by INT NULL, done_at VARCHAR(19) NULL, via VARCHAR(20) NULL, $meta";
     // Acente tahsilatları (cari hesap)
     $tables['payments'] = "id $pk, agency_id INT NOT NULL, booking_id INT NULL, pay_date VARCHAR(10) NOT NULL, amount DECIMAL(14,2) NOT NULL, currency VARCHAR(3) NOT NULL, method VARCHAR(30) NULL, note VARCHAR(255) NULL, deleted INT NOT NULL DEFAULT 0, $meta";
+    // Otelden gelen ödeme ekstreleri ve kontrol sonucu
+    $tables['hotel_statements'] = "id $pk, hotel_id INT NULL, hotel_name VARCHAR(160) NULL, currency VARCHAR(3) NULL, total DECIMAL(14,2) NULL, due DECIMAL(14,2) NULL, errors INT NOT NULL DEFAULT 0, status VARCHAR(10) NOT NULL DEFAULT 'kontrol', paid_at VARCHAR(10) NULL, note VARCHAR(255) NULL, data $txt NULL, deleted INT NOT NULL DEFAULT 0, $meta";
     $tables['mail_log'] = "id $pk, booking_id INT NOT NULL, kind VARCHAR(20) NOT NULL, state VARCHAR(20) NULL, to_addr VARCHAR(500) NOT NULL, cc VARCHAR(500) NULL, subject VARCHAR(255) NULL, ok INT NOT NULL DEFAULT 0, error VARCHAR(500) NULL, user_id INT NULL, user_name VARCHAR(120) NULL, at VARCHAR(19) NOT NULL";
     $tables['audit_log'] = "id $pk, at VARCHAR(19) NOT NULL, user_id INT NULL, user_name VARCHAR(120) NULL, ip VARCHAR(64) NULL, entity VARCHAR(30) NOT NULL, entity_id INT NULL, action VARCHAR(30) NOT NULL, summary VARCHAR(255) NULL, old_json $txt NULL, new_json $txt NULL";
 

@@ -11,6 +11,7 @@ require __DIR__ . '/lib/belge.php';
 require __DIR__ . '/lib/talepler.php';
 require __DIR__ . '/lib/gunluk.php';
 require __DIR__ . '/lib/rapor.php';
+require __DIR__ . '/lib/ekstre.php';
 require __DIR__ . '/lib/cari.php';
 require __DIR__ . '/lib/site_otel.php';
 require __DIR__ . '/lib/oneri.php';
@@ -165,6 +166,11 @@ try {
             case 'assistant_status':
                 require_once __DIR__ . '/lib/assistant.php';
                 out(asst_status());
+            case 'ekstreler':
+                out(['items' => ekstre_liste()]);
+            case 'ekstre':
+                $e = ekstre_getir((int)($_GET['id'] ?? 0));
+                out(['item' => $e, 'check' => ekstre_kontrol($e['statement'], $e['hotel_id'] ? (int)$e['hotel_id'] : null)]);
             case 'rapor':
             case 'rapor_csv':
                 $from = clean_date($_GET['from'] ?? '') ?: date('Y-01-01');
@@ -230,6 +236,14 @@ try {
         case 'booking_delete':
             booking_delete((int)$in['id']);
             out(['ok' => true]);
+        case 'ekstre_oku':
+            session_write_close(); // okuma uzun sürebilir; diğer istekler beklemesin
+            $st = ekstre_oku((string)($in['data'] ?? ''), (string)($in['mime'] ?? ''));
+            out(ekstre_kontrol($st, (int)($in['hotel_id'] ?? 0) ?: null));
+        case 'ekstre_kontrol':
+            out(ekstre_kontrol((array)($in['statement'] ?? []), (int)($in['hotel_id'] ?? 0) ?: null));
+        case 'ekstre_kaydet':
+            out(ekstre_kaydet($in));
         case 'hotels_import':
             out(hotels_import((string)($in['text'] ?? ''), !empty($in['commit']), (array)($in['add_similar'] ?? [])));
         case 'hotel_save':
