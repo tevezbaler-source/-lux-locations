@@ -56,7 +56,7 @@ function asst_client(): Client {
 /* ---------------- Araçlar ---------------- */
 
 /** Okuma araçları ve not: onaysız çalışır. */
-const ASST_INSTANT = ['ara', 'otel_ozeti', 'otel_detayi', 'grup_getir', 'grup_listesi', 'acente_detayi', 'kurlar', 'notlar', 'grup_onizle', 'not_ekle', 'not_tamamla'];
+const ASST_INSTANT = ['ara', 'otel_ozeti', 'otel_detayi', 'grup_getir', 'grup_listesi', 'acente_detayi', 'kurlar', 'notlar', 'grup_onizle', 'not_ekle', 'not_tamamla', 'gunluk_ozet', 'talepler', 'ekstre_kontrol', 'misafir_listesi'];
 
 function asst_tools(): array {
     $obj = fn(array $props, array $req = []) => ['type' => 'object', 'properties' => (object)$props] + ($req ? ['required' => $req] : []);
@@ -111,13 +111,22 @@ function asst_tools(): array {
         $t('not_ekle', 'Not defterine not veya hatırlatma ekler (onaysız). Notu ilgili otel, acente veya gruba bağlayabilirsiniz.', $obj(['text' => $str('Not'), 'due_date' => $date('Hatırlatma tarihi'),
             'hotel_id' => $int('Otel'), 'agency_id' => $int('Acente'), 'booking_id' => $int('Grup')], ['text'])),
         $t('not_tamamla', 'Notu yapıldı olarak işaretler.', $obj(['note_id' => $int('Not id')], ['note_id'])),
+        $t('gunluk_ozet', '"Bugün ne var?" sorusu için günün özeti: girişler, çıkışlar, konaklayanlar, süresi dolan opsiyonlar, yaklaşan hatalı gruplar, günü gelen notlar, yeni talepler, ödenmemiş otel ekstreleri.', $obj(['date' => $date('Gün (boşsa bugün)')])),
+        $t('talepler', 'Siteden gelen müşteri talepleri (en yeniler önce). Talebi gruba çevirmek için önce bunu okuyun, sonra grup_olustur ile talep_id verin.', $obj(['durum' => ['type' => 'string', 'enum' => ['new', 'review', 'quoted', 'confirmed', 'closed'], 'description' => 'new=yeni, review=inceleniyor, quoted=teklif iletildi'], 'ara' => $str('Ad, e-posta veya metinde ara')])),
+        $t('ekstre_kontrol', 'Kullanıcının eklediği otel ödeme ekstresini (ek_id) okur, satırları voucher numarasıyla gruplarla karşılaştırır ve Otel ödemeleri sayfasına kaydeder. Sonucu kısaca söyleyin: ödenebilir mi, hangi voucher\'da ne fark var.', $obj(['ek_id' => $str('Mesajdaki ek dosyanın ek_id\'si'), 'hotel_id' => $int('Ekstreyi gönderen otel (biliniyorsa)')], ['ek_id'])),
+        $t('misafir_listesi', 'Bir grubun kayıtlı misafir listesini (rooming list) getirir.', $obj(['booking_id' => $int('Grup id')], ['booking_id'])),
         // Onay isteyenler
-        $t('grup_olustur', 'Yeni grup açar. Kullanıcı onaylayınca kaydedilir.', $obj($bookingFields, ['hotel_id', 'check_in', 'check_out', 'rooms'])),
+        $t('grup_olustur', 'Yeni grup açar. Kullanıcı onaylayınca kaydedilir. Siteden gelen bir talepten açılıyorsa talep_id verin; grup talebe bağlanır.', $obj($bookingFields + ['talep_id' => $str('Talepler aracından gelen talep id')], ['hotel_id', 'check_in', 'check_out', 'rooms'])),
         $t('grup_guncelle', 'Mevcut grubu değiştirir (yalnız verilen alanlar değişir). Durum değiştirmek (opsiyon, konfirme, konaklamada, kapandı) da bununla yapılır. Kullanıcı onaylayınca kaydedilir.', $obj(['booking_id' => $int('Grup id')] + $bookingFields, ['booking_id'])),
         $t('grup_iptal', 'Grubu iptal eder (kayıt silinmez). Neden zorunlu.', $obj(['booking_id' => $int('Grup id'), 'reason' => $str('İptal nedeni ve ön ödeme ne olacak')], ['booking_id', 'reason'])),
         $t('grup_devret', 'Grubu başka acenteye devreder: eski grup iptal olur, aynı odalarla yeni acente için yeni grup açılır.', $obj(['booking_id' => $int('Grup id'), 'agency_id' => $int('Yeni acente id'), 'check_in' => $date('Yeni giriş (değişmiyorsa boş)'), 'check_out' => $date('Yeni çıkış')], ['booking_id', 'agency_id'])),
         $t('grup_tasi', 'Grubu başka otele taşır; alış yeni otelin sözleşmesinden gelir.', $obj(['booking_id' => $int('Grup id'), 'hotel_id' => $int('Yeni otel id')], ['booking_id', 'hotel_id'])),
         $t('grup_sil', 'Yanlış açılmış, hiç olmamış grubu siler. Gerçek bir grup için grup_iptal kullanın.', $obj(['booking_id' => $int('Grup id')], ['booking_id'])),
+        $t('misafir_listesi_kaydet', 'Grubun misafir listesini (rooming list) kaydeder; ekli bir rooming list\'ten okunan isimler için kullanın. Verilen liste eskisinin yerine geçer.', $obj(['booking_id' => $int('Grup id'),
+            'guests' => ['type' => 'array', 'items' => $obj(['room_no' => $int('Oda sırası (1, 2, 3...)'), 'room_type' => ['type' => 'string', 'enum' => ROOM_TYPES], 'name' => $str('Ad soyad'), 'pax' => ['type' => 'string', 'enum' => ['ADL', 'CHD', 'INF']], 'note' => $str('Not')], ['room_no', 'name'])],
+            'contact_name' => $str('Grup yetkilisi / lider'), 'nationality' => $str('Uyruk'), 'arrival_info' => $str('Geliş bilgisi (uçuş, saat)'), 'departure_info' => $str('Dönüş bilgisi')], ['booking_id', 'guests'])),
+        $t('otele_eposta', 'Grubun otel rezervasyon fişini otele e-postayla gönderir (yeni rezervasyon ya da değişiklik). Göndermeden önce kullanıcı alıcıyı ve konuyu onay kartında görür.', $obj(['booking_id' => $int('Grup id'),
+            'state' => ['type' => 'string', 'enum' => ['yeni', 'degisiklik'], 'description' => 'yeni: ilk talep; degisiklik: oda/tarih değişikliği'], 'to' => $str('Alıcı (boşsa otelin kayıtlı e-postası)'), 'cc' => $str('Kopya'), 'message' => $str('Fişin üstüne eklenecek kısa not (otel için, İngilizce veya Türkçe)')], ['booking_id'])),
         $t('kur_gir', 'Günün kurunu girer.', $obj(['rate_date' => $date('Tarih (boşsa bugün)'), 'eur_try' => $num('1 EUR kaç TL'), 'usd_try' => $num('1 USD kaç TL'), 'note' => $str('Not')], ['eur_try', 'usd_try'])),
         $t('otel_kaydet', 'Otel ekler veya günceller (hotel_id verilirse yalnız verilen alanlar değişir).', $obj(['hotel_id' => $int('Güncellenecek otel'), 'name' => $str('Ad'), 'stars' => $int('Yıldız'), 'region' => $str('Bölge'),
             'address' => $str('Adres'), 'email' => $str('Rezervasyon e-postası (virgülle birden fazla)'), 'contacts' => $str('Yetkili ve telefonlar'), 'notes' => $str('Notlar (tamamı)'), 'append_note' => $str('Notun sonuna eklenecek satır'), 'active' => ['type' => 'boolean']])),
@@ -144,6 +153,11 @@ Görevin: kullanıcının istediğini panelin araçlarıyla yapmak ve soruların
 - Hesap kuralları panelde: gece × oda × fiyat; PP satışta DBL/TWIN/SNGL ×2, TRPL ×3, QUAD ×4; gelen free alıştan, giden free satıştan düşer. Kâr EUR, USD ve TL olarak gösterilir. Konfirme, konaklamada ve kapandı gruplarda fiyatlar kilitlidir (yalnız Yönetici değiştirir). Kırmızı uyarılı grup konfirme edilemez; sözleşmeden farklı alışta buy_note gerekir.
 - Bir işlem hata verirse hatayı kullanıcıya sade dille anlat; kullanıcı onaylamadıysa ısrar etme.
 - Grubu kodu ile söyle (LUX...). Cevabın sonunda gereksiz soru sorma.
+- Adlar: kullanıcının söylediği otel/acente adı paneldeki addan farklı yazılmışsa (ses tanıma bozmuş olabilir) en yakın kaydı kullan ve cevabında "X'i kastettiğinizi varsaydım" diye kısaca belirt. Birden fazla makul aday varsa işlem yapmadan "Bunu mu demek istediniz: A mı, B mi?" diye sor.
+- Ek dosyalar: kullanıcı bir dosya eklediğinde mesajda [Ek dosya: ..., ek_id=...] yazar ve dosyayı görürsün. Otel ödeme ekstresi / hesap dökümü ise (voucher, C/IN, C/OUT, price, total sütunları) ekstre_kontrol aracını ek_id ile çağır ve sonucu kısa söyle: ödenebilir mi, toplam, hangi voucher'da ne fark var. Rooming list (misafir isimleri) ise grubu bul, misafir_listesi_kaydet ile isimleri oda oda kaydet (oda tipi, ADL/CHD). Otelin konfirmesi ise konfirme numarasını, tarihleri, oda ve fiyatları grupla karşılaştır; farkı söyle ve gerekiyorsa grup_guncelle ile hotel_conf_code vb. öner. Belgede okuyamadığın yeri uydurma, söyle.
+- "Bugün ne var?", "günün özeti" gibi sorularda gunluk_ozet kullan; önce sayıları, sonra yapılması gerekenleri (biten opsiyonlar, hatalı gruplar, yeni talepler, ödenmemiş ekstreler) kısa cümlelerle söyle.
+- Siteden gelen talepleri talepler aracıyla oku. Talebi gruba çevirirken talepteki bilgileri kullan, söylenmeyen fiyatı uydurma; grup_olustur'a talep_id ver (durum teklif).
+- Otele e-posta (otel fişi) için otele_eposta aracını kullan; gönderim onay kartıyla yapılır. Alıcıyı uydurma: otelin kayıtlı e-postası yoksa kullanıcıya sor.
 TXT;
     $ctx = "Bugün: " . date('Y-m-d') . ' (' . ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'][(int)date('w')] . ").\n"
         . "Kullanıcı: {$u['name']} (" . ROLES[$u['role']] . '). Yetkileri: ' . implode(', ', PERMS[$u['role']] ?? []) . ".\n"
@@ -237,8 +251,10 @@ function asst_run_instant(string $name, array $in): array {
             $s = norm_name((string)($in['query'] ?? ''));
             if ($s === '') return ['hotels' => [], 'agencies' => [], 'bookings' => []];
             $q = (string)$in['query'];
-            $hs = array_values(array_filter(q_all('SELECT id, name, region, active FROM hotels'), fn($h) => asst_name_match($q, [$h['name']])));
-            $as = array_values(array_filter(q_all('SELECT id, name, aliases, country, active FROM agencies'), fn($a) => asst_name_match($q, array_merge([$a['name']], explode(',', (string)$a['aliases'])))));
+            $score = function (array $names) use ($q) { $best = 0; foreach ($names as $n) { similar_text(norm_name($q), norm_name((string)$n), $pc); $best = max($best, $pc); } return round($best); };
+            $rank = function (array $rows, callable $names) use ($score) { foreach ($rows as &$r) { $r['benzerlik'] = $score($names($r)); } unset($r); usort($rows, fn($a, $b) => $b['benzerlik'] <=> $a['benzerlik']); return array_slice($rows, 0, 8); };
+            $hs = $rank(array_values(array_filter(q_all('SELECT id, name, region, active FROM hotels'), fn($h) => asst_name_match($q, [$h['name']]))), fn($h) => [$h['name']]);
+            $as = $rank(array_values(array_filter(q_all('SELECT id, name, aliases, country, active FROM agencies'), fn($a) => asst_name_match($q, array_merge([$a['name']], explode(',', (string)$a['aliases']))))), fn($a) => array_merge([$a['name']], explode(',', (string)$a['aliases'])));
             $bs = array_map(fn($r) => asst_compact_booking(booking_get((int)$r['id'])), q_all("SELECT id FROM bookings WHERE deleted = 0 AND UPPER(code) LIKE UPPER(?) LIMIT 10", ['%' . trim((string)$in['query']) . '%']));
             return ['hotels' => $hs, 'agencies' => $as, 'bookings' => $bs];
         case 'otel_ozeti':
@@ -296,6 +312,35 @@ function asst_run_instant(string $name, array $in): array {
         case 'not_tamamla':
             $n = note_done((int)($in['note_id'] ?? 0));
             return ['ok' => true, 'done_summary' => 'Not tamamlandı: ' . mb_substr($n['text'], 0, 80)];
+        case 'gunluk_ozet':
+            return asst_gunluk_ozet(clean_date($in['date'] ?? '') ?: date('Y-m-d'));
+        case 'talepler':
+            require_once __DIR__ . '/talepler.php';
+            if (!can('talep')) throw new ApiError('Talepleri görme yetkiniz yok.');
+            $t = talep_list((string)($in['durum'] ?? ''), (string)($in['ara'] ?? ''));
+            if (!$t['ready']) return ['talepler' => [], 'not' => 'Talep veritabanına ulaşılamadı.'];
+            return ['sayilar' => $t['counts'], 'talepler' => array_map(fn($r) => ['id' => $r['id'], 'tarih' => $r['at'], 'durum' => TALEP_DURUM[$r['status']] ?? $r['status'], 'kategori' => $r['category'],
+                'ad' => $r['name'], 'email' => $r['email'], 'telefon' => $r['phone'], 'seyahat_tarihi' => $r['travel_date'], 'mesaj' => mb_substr((string)$r['message'], 0, 600), 'not' => $r['note'],
+                'acilan_gruplar' => array_values(array_filter(array_map(fn($l) => $l['booking_code'] ?? null, $r['log'])))], array_slice($t['rows'], 0, 15))];
+        case 'ekstre_kontrol':
+            require_once __DIR__ . '/ekstre.php';
+            $f = asst_ek_get((string)($in['ek_id'] ?? ''));
+            $st = ekstre_oku(base64_encode((string)file_get_contents($f['path'])), $f['mime']);
+            $hid = (int)($in['hotel_id'] ?? 0) ?: null;
+            if (!$hid && $st['hotel'] !== '') {
+                foreach (q_all('SELECT id, name FROM hotels WHERE active = 1') as $h) if (norm_name($h['name']) === norm_name($st['hotel'])) { $hid = (int)$h['id']; break; }
+            }
+            $r = ekstre_kontrol($st, $hid);
+            $sv = ekstre_kaydet(['statement' => $st, 'hotel_id' => $hid, 'status' => 'kontrol', 'note' => 'Asistanla kontrol edildi']);
+            $cur = $st['currency'] ?: '';
+            return ['odenebilir' => $r['ok'], 'otel' => $sv['hotel_name'], 'para' => $cur, 'ekstre_toplami' => round($r['sum'], 2), 'panel_alis_toplami' => round($r['panel_sum'], 2), 'odenecek' => round($r['due'], 2),
+                'onceki_bakiye' => $st['previous_balance'], 'fark_sayisi' => $r['errors'],
+                'rezervasyonlar' => array_map(fn($g) => ['voucher' => $g['voucher'], 'grup' => $g['booking']['code'] ?? null, 'tutar' => $g['total'], 'farklar' => $g['errors'], 'notlar' => $g['info']], $r['groups']),
+                'genel_notlar' => array_map(fn($n) => $n[1], $r['notes']), 'ekstrede_olmayan_gruplar' => array_column($r['missing'], 'code'),
+                'link' => '#/odeme/' . $sv['id'], 'done_summary' => 'Ekstre kontrol edildi: ' . ($sv['hotel_name'] ?: 'otel') . ' · ' . ($r['ok'] ? 'ödenebilir ' . fmt_num($r['due']) . " $cur" : $r['errors'] . ' fark')];
+        case 'misafir_listesi':
+            $b = booking_get((int)($in['booking_id'] ?? 0));
+            return ['code' => $b['code'], 'guests' => guests_get((int)$b['id']), 'extra' => booking_extra_get((int)$b['id'])];
     }
     throw new ApiError("Bilinmeyen araç: $name");
 }
@@ -333,6 +378,7 @@ function asst_describe(string $name, array $in): array {
                 foreach ($b['free'] as $f) $lines[] = ($f['direction'] === 'in' ? 'Otelden alınan' : 'Acenteye verilen') . " free: {$f['qty']} {$f['room_type']}";
                 foreach ($b['services'] as $s) $lines[] = "Hizmet: {$s['kind']} " . ($s['description'] ?? '') . " alış " . ($s['buy'] ?? '—') . ' / satış ' . ($s['sell'] ?? '—') . " {$s['currency']}";
                 if ($b['notes']) $lines[] = 'Not: ' . mb_substr($b['notes'], 0, 200);
+                if (!empty($in['talep_id'])) $lines[] = 'Siteden gelen talebe bağlanacak.';
             }
             $calc = ['profit_eur' => $c['profit_eur'], 'profit_usd' => $c['profit_usd'], 'profit_try' => $c['profit_try'], 'buy' => [$c['buy_net'], $c['buy_cur']], 'sell' => [$c['sell_net'], $c['sell_cur']], 'warnings' => $c['warnings']];
             break;
@@ -340,6 +386,24 @@ function asst_describe(string $name, array $in): array {
         case 'grup_devret': $title = 'Başka acenteye devret: ' . $bl($in['booking_id']); $lines[] = 'Yeni acente: ' . ($an($in['agency_id'] ?? null) ?? '?') . (!empty($in['check_in']) ? " · yeni tarih {$in['check_in']} → " . ($in['check_out'] ?? '') : ''); $lines[] = 'Eski grup iptal olur, yeni grup açılır.'; break;
         case 'grup_tasi': $title = 'Başka otele taşı: ' . $bl($in['booking_id']); $lines[] = 'Yeni otel: ' . $hn($in['hotel_id'] ?? null) . '. Alış yeni otelin sözleşmesinden gelir.'; break;
         case 'grup_sil': $title = 'Grubu sil: ' . $bl($in['booking_id']); $lines[] = 'Yalnız yanlış açılmış kayıtlar için. Kayıt saklanır.'; break;
+        case 'misafir_listesi_kaydet':
+            $title = 'Misafir listesini kaydet: ' . $bl($in['booking_id']);
+            $gs = (array)($in['guests'] ?? []);
+            $rooms = count(array_unique(array_map(fn($g) => (int)($g['room_no'] ?? 0), $gs)));
+            $lines[] = count($gs) . " kişi, $rooms oda" . (guests_get((int)$in['booking_id']) ? ' (mevcut listenin yerine geçer)' : '');
+            foreach (array_slice($gs, 0, 6) as $g) $lines[] = 'Oda ' . ($g['room_no'] ?? '?') . ' ' . ($g['room_type'] ?? '') . ': ' . ($g['name'] ?? '') . (($g['pax'] ?? 'ADL') !== 'ADL' ? " ({$g['pax']})" : '');
+            if (count($gs) > 6) $lines[] = '… ve ' . (count($gs) - 6) . ' kişi daha';
+            foreach (['contact_name' => 'Yetkili', 'nationality' => 'Uyruk', 'arrival_info' => 'Geliş', 'departure_info' => 'Dönüş'] as $k => $l) if (!empty($in[$k])) $lines[] = "$l: {$in[$k]}";
+            break;
+        case 'otele_eposta':
+            $title = 'Otele e-posta gönder: ' . $bl($in['booking_id']);
+            $em = asst_eposta_hazirla($in);
+            $lines[] = 'Alıcı: ' . ($em['to'] ?: 'otelin e-postası kayıtlı değil, alıcı yazılmalı');
+            if ($em['cc']) $lines[] = 'Kopya: ' . $em['cc'];
+            $lines[] = 'Konu: ' . $em['subject'];
+            $lines[] = 'Tür: ' . ($em['state'] === 'degisiklik' ? 'değişiklik fişi' : 'yeni rezervasyon fişi');
+            if ($em['message']) $lines[] = 'Not: ' . $em['message'];
+            break;
         case 'kur_gir': $title = 'Kur gir'; $lines[] = ($in['rate_date'] ?? date('Y-m-d')) . ': 1 € = ' . ($in['eur_try'] ?? '?') . ' TL, 1 $ = ' . ($in['usd_try'] ?? '?') . ' TL'; break;
         case 'otel_kaydet': $title = !empty($in['hotel_id']) ? 'Oteli güncelle: ' . $hn($in['hotel_id']) : 'Yeni otel: ' . ($in['name'] ?? ''); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id'], true)) $lines[] = $kv($k, $v); break;
         case 'sozlesme_kaydet': $title = (!empty($in['rate_id']) ? 'Sözleşme fiyatını güncelle: ' : 'Sözleşme fiyatı ekle: ') . $hn($in['hotel_id'] ?? null); foreach ($in as $k => $v) if (!in_array($k, ['hotel_id', 'rate_id'], true)) $lines[] = $kv($k, $v); break;
@@ -363,6 +427,7 @@ function asst_run_confirmed(string $name, array $in): array {
             }
             if (!$old && empty($m['code'])) $m['code'] = next_code();
             $b = booking_save($m);
+            if (!$old && !empty($in['talep_id'])) { try { require_once __DIR__ . '/talepler.php'; talep_link(['id' => (string)$in['talep_id'], 'booking_id' => (int)$b['id']]); } catch (Throwable $e) { error_log('asistan talep bağlama: ' . $e->getMessage()); } }
             return ['ok' => true, 'booking_id' => (int)$b['id'], 'code' => $b['code'], 'link' => '#/grup/' . $b['id'], 'result' => asst_compact_booking($b),
                 'done_summary' => ($old ? 'Grup güncellendi: ' : 'Grup açıldı: ') . ($b['code'] ?: '#' . $b['id'])];
         case 'grup_iptal':
@@ -380,6 +445,17 @@ function asst_run_confirmed(string $name, array $in): array {
         case 'grup_sil':
             booking_delete((int)$in['booking_id']);
             return ['ok' => true, 'done_summary' => 'Grup silindi.'];
+        case 'misafir_listesi_kaydet':
+            $id = (int)$in['booking_id'];
+            $extra = booking_extra_get($id);
+            foreach (['contact_name', 'nationality', 'arrival_info', 'departure_info'] as $k) if (!empty($in[$k])) $extra[$k] = $in[$k];
+            $r = guests_save(['booking_id' => $id, 'guests' => (array)($in['guests'] ?? []), 'extra' => $extra]);
+            return ['ok' => true, 'link' => '#/grup/' . $id, 'done_summary' => 'Misafir listesi kaydedildi: ' . count($r['guests']) . ' kişi'];
+        case 'otele_eposta':
+            $em = asst_eposta_hazirla($in);
+            if (!$em['to']) throw new ApiError('Otelin e-posta adresi kayıtlı değil; alıcıyı söyleyin.');
+            talep_send(['booking_id' => (int)$in['booking_id'], 'state' => $em['state'], 'to' => $em['to'], 'cc' => $em['cc'], 'message' => $em['message']]);
+            return ['ok' => true, 'link' => '#/grup/' . (int)$in['booking_id'], 'done_summary' => 'Otele e-posta gönderildi: ' . $em['to']];
         case 'kur_gir':
             $r = fx_save($in);
             return ['ok' => true, 'link' => '#/kurlar', 'done_summary' => "Kur girildi: {$r['rate_date']}"];
@@ -438,6 +514,7 @@ function asst_state(): array {
 function asst_save_state(array $s): void {
     lx_session_start();
     $s['t'] = time();
+    $s['messages'] = asst_strip_files($s['messages'] ?? []);
     $_SESSION[asst_key()] = $s;
 }
 
@@ -549,13 +626,20 @@ function asst_loop(array $s, array $done = []): array {
     return ['reply' => implode("\n\n", $texts) ?: 'Tamam.', 'proposals' => [], 'done' => $done];
 }
 
-function asst_message(string $text): array {
+function asst_message(string $text, ?array $file = null): array {
     @set_time_limit(300);
     $text = trim($text);
-    if ($text === '') throw new ApiError('Bir şey söyleyin ya da yazın.');
+    if ($text === '' && !$file) throw new ApiError('Bir şey söyleyin ya da yazın.');
     $s = asst_state();
     if ($s['pending']) $s = asst_resolve($s, false, 'Kullanıcı bu işlemi onaylamadı, onun yerine yeni bir şey söyledi.');
-    $s['messages'][] = ['role' => 'user', 'content' => mb_substr($text, 0, 4000)];
+    if ($file && !empty($file['data'])) {
+        $ek = asst_ek_save((string)$file['data'], (string)($file['mime'] ?? ''), (string)($file['name'] ?? ''));
+        $src = ['type' => 'base64', 'mediaType' => $ek['mime'], 'data' => (string)$file['data']];
+        $blk = $ek['mime'] === 'application/pdf' ? ['type' => 'document', 'source' => $src] : ['type' => 'image', 'source' => $src];
+        $s['messages'][] = ['role' => 'user', 'content' => [$blk, ['type' => 'text', 'text' => mb_substr($text !== '' ? $text : 'Bu belgeye bak.', 0, 4000) . "\n[Ek dosya: {$ek['name']}, ek_id={$ek['id']}]"]]];
+    } else {
+        $s['messages'][] = ['role' => 'user', 'content' => mb_substr($text, 0, 4000)];
+    }
     return asst_loop($s);
 }
 
@@ -584,4 +668,90 @@ function asst_confirm(bool $approve): array {
 
 function asst_reset(): void {
     unset($_SESSION[asst_key()]);
+}
+
+/* ---------------- Ek dosyalar, günlük özet, e-posta ---------------- */
+
+function asst_ek_dir(): string { return dirname(__DIR__) . '/data/asistan-ek'; }
+
+/** Asistana eklenen dosyayı sunucuda kısa süreliğine saklar (2 gün); id döner. */
+function asst_ek_save(string $b64, string $mime, string $name): array {
+    $mime = strtolower($mime);
+    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf'][$mime] ?? null;
+    if (!$ext) throw new ApiError('Yalnız fotoğraf (JPG, PNG) veya PDF ekleyebilirsiniz.');
+    $bin = base64_decode($b64, true);
+    if ($bin === false || $bin === '') throw new ApiError('Dosya okunamadı.');
+    if (strlen($bin) > 10_000_000) throw new ApiError('Dosya çok büyük (en fazla 10 MB).');
+    $dir = asst_ek_dir();
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    foreach (glob($dir . '/*') ?: [] as $old) if (is_file($old) && filemtime($old) < time() - 2 * 86400) @unlink($old);
+    $id = bin2hex(random_bytes(8));
+    file_put_contents("$dir/$id.$ext", $bin, LOCK_EX);
+    return ['id' => $id, 'mime' => $mime, 'name' => mb_substr(preg_replace('/[^\pL\pN ._-]/u', '', $name), 0, 80) ?: "ek.$ext"];
+}
+
+function asst_ek_get(string $id): array {
+    if (!preg_match('/^[a-f0-9]{16}$/', $id)) throw new ApiError('Ek dosya bulunamadı; dosyayı yeniden ekleyin.');
+    foreach (['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif', 'pdf' => 'application/pdf'] as $ext => $mime) {
+        $p = asst_ek_dir() . "/$id.$ext";
+        if (is_file($p)) return ['path' => $p, 'mime' => $mime];
+    }
+    throw new ApiError('Ek dosya bulunamadı (2 günden eski ekler silinir); dosyayı yeniden ekleyin.');
+}
+
+/** Oturumda saklanan geçmişten büyük dosya bloklarını çıkarır (model dosyayı ilk istekte gördü). */
+function asst_strip_files(array $messages): array {
+    foreach ($messages as &$m) {
+        if (($m['role'] ?? '') !== 'user' || !is_array($m['content'])) continue;
+        foreach ($m['content'] as &$b) if (in_array($b['type'] ?? '', ['image', 'document'], true)) $b = ['type' => 'text', 'text' => '[Ek dosya bu mesajda gösterilmişti; içeriği gerekirse ek_id ile araçlara verin.]'];
+        unset($b);
+    }
+    unset($m);
+    return $messages;
+}
+
+function asst_eposta_hazirla(array $in): array {
+    $id = (int)($in['booking_id'] ?? 0);
+    $state = ($in['state'] ?? '') === 'degisiklik' ? 'degisiklik' : 'yeni';
+    $D = belge_data($id, $state);
+    $to = trim((string)($in['to'] ?? '')) ?: (string)($D['hotel']['email'] ?? '');
+    $m = talep_mail($D, current_user(), (string)($in['message'] ?? ''));
+    return ['to' => $to, 'cc' => trim((string)($in['cc'] ?? '')), 'subject' => $m['subject'], 'state' => $state, 'message' => trim((string)($in['message'] ?? ''))];
+}
+
+/** "Bugün ne var?" */
+function asst_gunluk_ozet(string $d): array {
+    $act = "status IN ('opsiyon','konfirme','konaklamada','kapandi') AND deleted = 0";
+    $ids = fn(string $w, array $p) => array_map(fn($r) => asst_compact_booking(booking_get((int)$r['id'])), q_all("SELECT id FROM bookings WHERE $w ORDER BY check_in, id LIMIT 40", $p));
+    $out = [
+        'gun' => $d,
+        'bugun_giris' => $ids("$act AND check_in = ?", [$d]),
+        'bugun_cikis' => $ids("$act AND check_out = ?", [$d]),
+        'konaklayan_grup_sayisi' => (int)q_val("SELECT COUNT(*) FROM bookings WHERE $act AND check_in <= ? AND check_out > ?", [$d, $d]),
+        'konaklayan_oda' => (int)q_val("SELECT COALESCE(SUM(r.qty),0) FROM booking_rooms r JOIN bookings b ON b.id = r.booking_id WHERE b.status IN ('opsiyon','konfirme','konaklamada','kapandi') AND b.deleted = 0 AND b.check_in <= ? AND b.check_out > ?", [$d, $d]),
+        'opsiyonu_bitenler' => $ids("status = 'opsiyon' AND deleted = 0 AND option_until IS NOT NULL AND option_until <= ?", [date_add_days($d, 2)]),
+        'yarin_giris' => $ids("$act AND check_in = ?", [date_add_days($d, 1)]),
+    ];
+    // Önümüzdeki 14 günde kırmızı uyarılı ya da hâlâ teklif/opsiyon olan gruplar
+    $soon = [];
+    foreach (q_all("SELECT id FROM bookings WHERE deleted = 0 AND status NOT IN ('iptal','kapandi') AND check_in >= ? AND check_in <= ? ORDER BY check_in LIMIT 80", [$d, date_add_days($d, 14)]) as $r) {
+        $c = asst_compact_booking(booking_get((int)$r['id']));
+        $err = array_values(array_filter($c['warnings'], fn($w) => str_starts_with($w, 'error')));
+        if ($err || in_array($c['status'], ['teklif', 'opsiyon'], true)) $soon[] = $c;
+    }
+    $out['yaklasan_dikkat'] = array_slice($soon, 0, 20);
+    $out['gunu_gelen_notlar'] = array_values(array_map(fn($n) => ['id' => (int)$n['id'], 'text' => $n['text'], 'due_date' => $n['due_date'], 'otel' => $n['hotel_name'], 'acente' => $n['agency_name'], 'grup' => $n['booking_code']],
+        array_filter(notes_list(false), fn($n) => $n['due_date'] && $n['due_date'] <= $d)));
+    if (can('talep')) {
+        require_once __DIR__ . '/talepler.php';
+        try {
+            $t = talep_list('new');
+            $out['yeni_talepler'] = ['sayi' => $t['counts']['new'] ?? 0, 'son' => array_map(fn($r) => ['id' => $r['id'], 'tarih' => $r['at'], 'ad' => $r['name'], 'kategori' => $r['category'], 'seyahat_tarihi' => $r['travel_date']], array_slice($t['rows'], 0, 5))];
+        } catch (Throwable $e) { /* talep veritabanı yoksa geç */ }
+    }
+    if (can('cari')) {
+        try { $out['odenmemis_otel_ekstreleri'] = q_all("SELECT id, hotel_name, due, currency, errors, created_at FROM hotel_statements WHERE deleted = 0 AND status = 'kontrol' ORDER BY id DESC LIMIT 10"); } catch (Throwable $e) { /* tablo yoksa */ }
+    }
+    $out['kur'] = latest_rate();
+    return $out;
 }

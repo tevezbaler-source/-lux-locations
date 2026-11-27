@@ -288,7 +288,7 @@ try {
             out(note_done((int)($in['id'] ?? 0), !isset($in['done']) || !empty($in['done'])));
         case 'assistant':
             require_once __DIR__ . '/lib/assistant.php';
-            out(asst_message((string)($in['text'] ?? '')));
+            out(asst_message((string)($in['text'] ?? ''), is_array($in['file'] ?? null) ? $in['file'] : null));
         case 'assistant_confirm':
             require_once __DIR__ . '/lib/assistant.php';
             out(asst_confirm(!empty($in['approve'])));

@@ -1595,7 +1595,7 @@
   }
 
   /* ================= SESLİ ASİSTAN ================= */
-  const A = { el: null, open: false, busy: false, log: [], rec: null, listening: false, speak: false, status: null, mode: null };
+  const A = { el: null, open: false, busy: false, log: [], rec: null, listening: false, speak: false, status: null, mode: null, file: null, pttAt: 0 };
   try { A.speak = localStorage.getItem('lx_asst_speak') === '1'; } catch (e) { /* yok */ }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -1612,8 +1612,11 @@
             <label class="small" title="Asistanın cevabını sesli okur"><input type="checkbox" id="asstSpeak"> Sesli cevap</label>
             <button class="link" id="asstNew" title="Konuşmayı temizle">Yeni konuşma</button><button class="link" id="asstClose" title="Kapat">✕</button></div>
           <div class="asst-log" id="asstLog"></div>
+          <div class="asst-quick" id="asstQuick"><button type="button" data-q="Bugün ne var?">Bugün ne var?</button><button type="button" data-q="Yeni talepler neler?">Yeni talepler</button><button type="button" data-q="Opsiyonu bitmek üzere olan gruplar hangileri?">Biten opsiyonlar</button></div>
+          <div class="asst-file hidden" id="asstFile"></div>
           <form class="asst-input" id="asstForm">
-            <button type="button" class="asst-mic" id="asstMic" title="Basın ve konuşun">🎤</button>
+            <button type="button" class="asst-att" id="asstAtt" title="Dosya ekle: otel ekstresi, rooming list, konfirme (fotoğraf veya PDF)">📎</button><input type="file" id="asstAttIn" accept="image/*,application/pdf" hidden>
+            <button type="button" class="asst-mic" id="asstMic" title="Basın ve konuşun (basılı tutup bırakınca gönderir)">🎤</button>
             <textarea id="asstText" rows="2" placeholder="Konuşun ya da yazın: &quot;Glorious'a Marwen için 10 Aralık'tan 3 gece 10 DBL opsiyon aç, satış 55 dolar&quot;"></textarea>
             <button class="primary" id="asstSend">Gönder</button>
           </form>
@@ -1626,7 +1629,19 @@
       qs('#asstSpeak').onchange = (e) => { A.speak = e.target.checked; try { localStorage.setItem('lx_asst_speak', A.speak ? '1' : '0'); } catch (er) { /* yok */ } if (!A.speak) speechSynthesis?.cancel(); };
       qs('#asstForm').onsubmit = (e) => { e.preventDefault(); asstSend(); };
       qs('#asstText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); asstSend(); } });
-      qs('#asstMic').onclick = () => asstListen();
+      // Mikrofon: dokun = dinlemeye başla/bitir; basılı tut = bırakınca gönder (telefonda kolay)
+      const mic = qs('#asstMic');
+      mic.addEventListener('pointerdown', (e) => { if (A.listening || A.busy) return; e.preventDefault(); A.pttAt = Date.now(); asstListen(); });
+      mic.addEventListener('pointerup', () => { if (A.pttAt && A.listening && Date.now() - A.pttAt > 600) A.rec?.stop(); A.pttAt = 0; });
+      mic.addEventListener('click', (e) => { e.preventDefault(); if (A.pttAt === 0 && A.listening && !A.justStarted) A.rec?.stop(); });
+      qs('#asstAtt').onclick = () => qs('#asstAttIn').click();
+      qs('#asstAttIn').onchange = async (e) => {
+        const f = e.target.files[0]; e.target.value = '';
+        if (!f) return;
+        try { const r = await fileToB64(f); A.file = { data: r.data, mime: r.mime, name: f.name }; asstFileChip(); qs('#asstText').focus(); }
+        catch (er) { toast(er.message, 'err'); }
+      };
+      qsa('#asstQuick button').forEach((b) => b.onclick = () => asstSend(b.dataset.q));
       if (!SR) qs('#asstMic').classList.add('hidden');
       document.addEventListener('keydown', (e) => { if (e.ctrlKey && e.code === 'Space' && S.user) { e.preventDefault(); asstToggle(true, true); } });
     }
@@ -1659,7 +1674,7 @@
       else html += `<div class="asst-msg sys">Asistan henüz açılmadı. Yöneticinin API anahtarını girmesi gerekiyor.</div>`;
     } else if (!A.log.length) {
       html += `<div class="asst-msg sys">Ne yapmak istediğinizi söyleyin. Örnekler:<br>
-        • "Bu ay en çok kâr eden üç otel hangisi?"<br>• "LUX6302'yi konfirme et"<br>• "Tudan'ın Ramada grubunu Hello'ya devret"<br>• "Bugünün kuru euro 50,10 dolar 43,05"<br>• "Not al: yarın Harun Bey'i ara"<br>
+        • "Bu ay en çok kâr eden üç otel hangisi?"<br>• "LUX6302'yi konfirme et"<br>• "Tudan'ın Ramada grubunu Hello'ya devret"<br>• "Bugünün kuru euro 50,10 dolar 43,05"<br>• "Not al: yarın Harun Bey'i ara"<br>• 📎 ile otel ekstresini ekleyip "kontrol et"<br>• Rooming list ekleyip "LUX6302'ye işle"<br>
         Kayıtları değiştiren her işlemden önce onay kartı çıkar. Notlar onaysız eklenir.${SR ? '' : '<br><b>Bu tarayıcı sesle yazmayı desteklemiyor; Chrome veya Edge kullanın ya da yazın.</b>'}</div>`;
     }
     A.log.forEach((m, i) => {
@@ -1688,7 +1703,7 @@
     qsa('[data-no]', box).forEach((b) => b.onclick = () => asstDecide(+b.dataset.no, false));
     box.scrollTop = box.scrollHeight;
     const busy = A.busy;
-    ['#asstSend', '#asstMic'].forEach((s) => { const el = qs(s); if (el) el.disabled = busy || !(A.status && A.status.configured); });
+    ['#asstSend', '#asstMic', '#asstAtt'].forEach((s) => { const el = qs(s); if (el) el.disabled = busy || !(A.status && A.status.configured); });
   }
 
   async function asstRun(call) {
@@ -1709,14 +1724,22 @@
     } finally { A.busy = false; asstRender(); }
   }
 
+  function asstFileChip() {
+    const el = qs('#asstFile'); if (!el) return;
+    el.classList.toggle('hidden', !A.file);
+    el.innerHTML = A.file ? `📎 ${esc(A.file.name)} <button type="button" class="link" id="asstFileX" title="Eki kaldır">✕</button>` : '';
+    if (A.file) qs('#asstFileX').onclick = () => { A.file = null; asstFileChip(); };
+  }
+
   function asstSend(text) {
     const ta = qs('#asstText');
     const t = (text ?? ta.value).trim();
-    if (!t || A.busy) return;
+    if ((!t && !A.file) || A.busy) return;
     ta.value = '';
+    const file = A.file; A.file = null; asstFileChip();
     A.log.forEach((m) => { if (m.proposals && m.proposals.length && !m.decided) m.decided = 'no'; });
-    asstAdd({ kind: 'user', text: t });
-    asstRun(() => api('assistant', {}, { text: t }));
+    asstAdd({ kind: 'user', text: (file ? '📎 ' + file.name + (t ? '\n' : '') : '') + t });
+    asstRun(() => api('assistant', {}, { text: t, file }));
   }
 
   function asstDecide(i, yes) {
@@ -1753,6 +1776,7 @@
       if (finalText.trim()) asstSend(finalText);
     };
     A.rec = rec; A.listening = true; qs('#asstMic').classList.add('on');
+    A.justStarted = true; setTimeout(() => { A.justStarted = false; }, 400);
     try { rec.start(); } catch (e) { asstStopListen(); }
   }
 

@@ -271,7 +271,7 @@ function guests_save(array $in): array {
             'room_no' => max(1, min(999, (int)($g['room_no'] ?? 1))),
             'room_type' => in_array($type, ROOM_TYPES, true) ? $type : null,
             'name' => $name,
-            'pax' => in_array($g['pax'] ?? 'ADL', ['ADL', 'CHD', 'INF'], true) ? $g['pax'] : 'ADL',
+            'pax' => in_array($g['pax'] ?? 'ADL', ['ADL', 'CHD', 'INF'], true) ? ($g['pax'] ?? 'ADL') : 'ADL',
             'note' => clean_str($g['note'] ?? null, 255),
         ];
     }
