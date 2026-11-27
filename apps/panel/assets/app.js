@@ -386,7 +386,16 @@
     qs('#fFrom', main).onchange = (e) => setQ({ from: e.target.value });
     qs('#fTo', main).onchange = (e) => setQ({ to: e.target.value });
     qs('#fReg', main).onchange = (e) => setQ({ region: e.target.value });
-    qs('#fQ', main).onkeydown = (e) => { if (e.key === 'Enter') setQ({ q: e.target.value.trim() }); };
+    // Yazarken otel ve acente önerisi: seçince oteli/acenteyi açar; Enter listeyi süzer
+    const fQ = qs('#fQ', main);
+    let qItems = [];
+    Promise.all([api('hotels'), api('agency_names')]).then(([h, a]) => {
+      qItems = h.hotels.map((x) => ({ label: x.name, value: 'o' + x.id, keys: (x.region || '') + ' otel' }))
+        .concat((a.agencies || []).map((x) => ({ label: x.name + ' (acente)', value: 'a' + x.id, keys: (x.aliases || '') + ' ' + (x.country || '') })));
+      if (document.activeElement === fQ && fQ.value.trim()) fQ.dispatchEvent(new Event('input'));
+    }).catch(() => {});
+    suggestBox(fQ, () => qItems, (it) => go(it.value[0] === 'o' ? '#/otel/' + it.value.slice(1) : '#/acente/' + it.value.slice(1)), { showAllOnFocus: false, max: 10 });
+    fQ.onkeydown = (e) => { if (e.key === 'Enter' && !e.defaultPrevented) setQ({ q: e.target.value.trim() }); };
     const ah = qs('#addHotel', main); if (ah) ah.onclick = () => hotelForm();
     const sa = qs('#showAllH', main); if (sa) sa.onclick = (e) => { e.preventDefault(); setQ({ hepsi: '1' }); };
     const su = qs('#showUsedH', main); if (su) su.onclick = (e) => { e.preventDefault(); setQ({ hepsi: '' }); };
